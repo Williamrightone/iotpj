@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>willThx — 批號查詢</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="sidebarMount"></div>
+<div class="main">
+  <header class="page-header">
+    <div>
+      <div class="page-title">批號查詢</div>
+      <div class="page-subtitle">資料查詢 / 批號查詢</div>
+    </div>
+  </header>
+  <div class="page-body">
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-body">
+        <div style="max-width:500px;">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px;">輸入批號（LotID）</label>
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="e.g. Lot-007" onkeydown="if(event.key==='Enter')doSearch()">
+            <button onclick="doSearch()">查詢</button>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--text-muted);">快速範例：</span>
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="quickSearch('Lot-007')">Lot-007（進行中）</button>
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="quickSearch('Lot-006')">Lot-006（已完成）</button>
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="quickSearch('Lot-005')">Lot-005（已完成）</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="resultArea"></div>
+  </div>
+</div>
+<div id="modalMount"></div>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  document.getElementById('sidebarMount').innerHTML = renderSidebar();
+  document.getElementById('modalMount').innerHTML = MODAL_HTML;
+  initApp();
+
+  const LOT_DATA = {
+    'Lot-007': { id:'Lot-007', total:20, done:14, status:'active',   startTime:'2026-08-07 10:00', endTime:null,              product:'PCB-A100' },
+    'Lot-006': { id:'Lot-006', total:20, done:20, status:'completed', startTime:'2026-08-07 06:00', endTime:'2026-08-07 09:55', product:'PCB-A100' },
+    'Lot-005': { id:'Lot-005', total:20, done:20, status:'completed', startTime:'2026-08-07 01:30', endTime:'2026-08-07 05:50', product:'PCB-B200' },
+  };
+
+  function generateLotUnits(lot) {
+    const units = [];
+    for (let i = 1; i <= lot.total; i++) {
+      const serial = `PCB-2026-${(i + (lot.id === 'Lot-006' ? 20 : lot.id === 'Lot-005' ? 40 : 0)).toString().padStart(5,'0')}`;
+      const isDone = i <= lot.done;
+      const aoiFail = isDone && Math.random() < 0.1;
+      const reReview = aoiFail && Math.random() > 0.5;
+      const finalPass = !aoiFail || reReview;
+      units.push({
+        idx: i, serial, isDone,
+        s1: isDone ? 'PASS' : '—',
+        s2: isDone ? (aoiFail ? (reReview ? 'PASS*' : 'FAIL') : 'PASS') : '—',
+        s3: isDone ? (Math.random() < 0.08 ? 'WARN' : 'PASS') : '—',
+        s4: isDone ? (Math.random() < 0.05 ? 'FAIL' : 'PASS') : '—',
+        final: !isDone ? '—' : (finalPass ? 'PASS' : 'FAIL'),
+        hasAlert: isDone && (aoiFail || Math.random() < 0.05),
+        aoiFail, reReview,
+      });
+    }
+    return units;
+  }
+
+  function calcYield(units, field) {
+    const done = units.filter(u => u.isDone);
+    if (!done.length) return { pass:0, fail:0, rate:0 };
+    const pass = done.filter(u => u[field] === 'PASS' || u[field] === 'PASS*').length;
+    return { pass, fail: done.length - pass, rate: Math.round(pass/done.length*100) };
+  }
+
+  function doSearch() {
+    const val = document.getElementById('searchInput').value.trim();
+    if (!val) return;
+    const lot = LOT_DATA[val];
+    if (!lot) {
+      document.getElementById('resultArea').innerHTML = `<div class="card"><div class="card-body"><div class="empty-state"><div class="empty-icon">▤</div>找不到批號「${val}」</div></div></div>`;
+      return;
+    }
+    const units = generateLotUnits(lot);
+    renderResult(lot, units);
+  }
+
+  function quickSearch(val) {
+    document.getElementById('searchInput').value = val;
+    doSearch();
+  }
+
+  function renderResult(lot, units) {
+    const y2 = calcYield(units, 's2');
+    const y4 = calcYield(units, 's4');
+    const yF = calcYield(units, 'final');
+
+    const aoiReviews = units.filter(u => u.aoiFail);
+
+    document.getElementById('resultArea').innerHTML = `
+      <!-- Lot Header -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-body">
+          <div class="info-row">
+            <div class="info-item">
+              <div class="info-label">批號</div>
+              <div class="info-value" style="font-size:18px;">${lot.id}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">產品型號</div>
+              <div class="info-value">${lot.product}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">狀態</div>
+              <div class="info-value">
+                ${lot.status === 'active'
+                  ? '<span class="badge badge-info">進行中</span>'
+                  : '<span class="badge badge-success">已完成</span>'}
+              </div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">進度</div>
+              <div class="info-value">${lot.done} / ${lot.total} Unit</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">投料時間</div>
+              <div class="info-value">${lot.startTime}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">完成時間</div>
+              <div class="info-value">${lot.endTime || '—'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Yield Stats -->
+      <div class="yield-grid">
+        <div class="yield-card">
+          <div class="yield-station">AOI 良率</div>
+          <div class="yield-pct ${y2.rate < 90 ? 'warn' : ''}">${y2.rate}%</div>
+          <div class="yield-sub">Pass ${y2.pass} / Fail ${y2.fail}</div>
+        </div>
+        <div class="yield-card">
+          <div class="yield-station">最終良率</div>
+          <div class="yield-pct ${yF.rate < 90 ? 'bad' : ''}">${yF.rate}%</div>
+          <div class="yield-sub">Pass ${yF.pass} / Fail ${yF.fail}</div>
+        </div>
+        <div class="yield-card">
+          <div class="yield-station">AOI 複判數</div>
+          <div class="yield-pct" style="color:var(--warning);">${aoiReviews.length}</div>
+          <div class="yield-sub">機器判 fail 筆數</div>
+        </div>
+        <div class="yield-card">
+          <div class="yield-station">複判通過率</div>
+          <div class="yield-pct" style="color:var(--primary);">
+            ${aoiReviews.length ? Math.round(aoiReviews.filter(u=>u.reReview).length/aoiReviews.length*100) : 100}%
+          </div>
+          <div class="yield-sub">複判後轉 pass</div>
+        </div>
+      </div>
+
+      <!-- Units Table -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+          <span class="card-title">板件清單</span>
+          <span style="font-size:12px;color:var(--text-muted);margin-left:8px;">${lot.total} 片</span>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>序號</th>
+                  <th>錫膏印刷</th>
+                  <th>AOI 檢測</th>
+                  <th>回流焊</th>
+                  <th>最終組裝</th>
+                  <th>最終結果</th>
+                  <th>追溯</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${units.map(u => `
+                  <tr>
+                    <td style="color:var(--text-muted);font-size:12px;">${u.idx}</td>
+                    <td><a href="traceability.html" onclick="event.preventDefault();sessionStorage.setItem('trace_serial','${u.serial}');window.location='traceability.html?serial=${u.serial}'" style="color:var(--primary);font-size:13px;font-family:monospace;">${u.serial}</a></td>
+                    <td>${statusBadge(u.s1)}</td>
+                    <td>${statusBadge(u.s2)}</td>
+                    <td>${statusBadge(u.s3)}</td>
+                    <td>${statusBadge(u.s4)}</td>
+                    <td>${statusBadge(u.final)}</td>
+                    <td>
+                      ${u.isDone ? `<a href="traceability.html?serial=${u.serial}" class="btn btn-ghost" style="padding:3px 10px;font-size:12px;">查看</a>` : '—'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- AOI Review Records -->
+      ${aoiReviews.length ? `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">AOI 複判記錄</span>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>板件序號</th>
+                  <th>機器判定</th>
+                  <th>缺陷碼</th>
+                  <th>複判人員</th>
+                  <th>複判結果</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${aoiReviews.map(u => `
+                  <tr>
+                    <td style="font-family:monospace;font-size:13px;">${u.serial}</td>
+                    <td><span class="badge badge-danger">FAIL</span></td>
+                    <td><code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;">SOLDER-BRIDGE</code></td>
+                    <td>${u.reReview ? '李操作員' : '—'}</td>
+                    <td>${u.reReview ? '<span class="badge badge-success">PASS</span>' : '<span style="color:var(--text-muted);font-size:13px;">待複判</span>'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+    `;
+  }
+
+  function statusBadge(val) {
+    if (val === 'PASS' || val === 'PASS*') return `<span class="badge badge-success" style="font-size:11px;">${val}</span>`;
+    if (val === 'FAIL') return `<span class="badge badge-danger" style="font-size:11px;">FAIL</span>`;
+    if (val === 'WARN') return `<span class="badge badge-warning" style="font-size:11px;">WARN</span>`;
+    return `<span style="color:var(--text-muted);font-size:12px;">—</span>`;
+  }
+
+  // Auto-search from query string
+  const params = new URLSearchParams(location.search);
+  if (params.get('lot')) {
+    document.getElementById('searchInput').value = params.get('lot');
+    doSearch();
+  }
+</script>
+</body>
+</html>

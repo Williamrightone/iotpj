@@ -1,0 +1,35 @@
+# Maven
+target/
+*.class
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Logs
+*.log
+logs/
+
+# Spring Boot
+*.pid
+
+# Keys (절대 커밋하지 말 것)
+backend/**/src/main/resources/keys/
+*.pem
+*.p12
+*.jks
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db

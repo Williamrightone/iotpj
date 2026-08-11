@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>willThx — IoT 元件管理</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="sidebarMount"></div>
+<div class="main">
+  <header class="page-header">
+    <div>
+      <div class="page-title">IoT 元件管理</div>
+      <div class="page-subtitle">製程配置 / IoT 元件管理</div>
+    </div>
+    <div class="header-actions">
+      <select id="stationFilter" style="padding:7px 12px;font-size:13px;" onchange="onStationChange()">
+        <option value="">所有站點</option>
+      </select>
+      <select id="machineFilter" style="padding:7px 12px;font-size:13px;" onchange="renderTable()">
+        <option value="">所有機台</option>
+      </select>
+      <button class="btn btn-primary" data-write-action onclick="openAddComponent()">＋ 新增元件</button>
+    </div>
+  </header>
+  <div class="page-body">
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>元件代碼</th>
+                <th>元件名稱</th>
+                <th>所屬</th>
+                <th>資料類型</th>
+                <th>單位</th>
+                <th>上報頻率</th>
+                <th>正常範圍</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="compTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="modalMount"></div>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  document.getElementById('sidebarMount').innerHTML = renderSidebar();
+  document.getElementById('modalMount').innerHTML = MODAL_HTML;
+  initApp();
+
+  const TYPE_TAG = { Telemetry:'tag-telemetry', Event:'tag-event', Command:'tag-command' };
+
+  // Build station filter
+  const sf = document.getElementById('stationFilter');
+  MOCK_STATIONS.forEach(s => {
+    const o = document.createElement('option'); o.value=s.id; o.textContent=s.name; sf.appendChild(o);
+  });
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('station')) { sf.value = params.get('station'); onStationChange(); }
+  if (params.get('machine')) { document.getElementById('machineFilter').value = params.get('machine'); }
+
+  function onStationChange() {
+    const sid = document.getElementById('stationFilter').value;
+    const mf = document.getElementById('machineFilter');
+    mf.innerHTML = '<option value="">所有機台</option>';
+    if (sid && MOCK_MACHINES[sid]) {
+      MOCK_MACHINES[sid].forEach(m => {
+        const o = document.createElement('option'); o.value=m.id; o.textContent=m.name; mf.appendChild(o);
+      });
+      // Add station-level option
+      const o = document.createElement('option'); o.value='__station__'; o.textContent='（站點層級元件）'; mf.appendChild(o);
+    }
+    renderTable();
+  }
+
+  function getParentLabel(c) {
+    if (!c.machineId) {
+      const s = MOCK_STATIONS.find(x => x.id === c.stationId);
+      return `<span style="color:var(--text-muted);font-size:12px;">${s ? s.name : c.stationId}<br><em>站點層級</em></span>`;
+    }
+    const allM = Object.values(MOCK_MACHINES).flat();
+    const m = allM.find(x => x.id === c.machineId);
+    const s = MOCK_STATIONS.find(x => x.id === c.stationId);
+    return `<span style="font-size:12px;"><span style="color:var(--text-muted)">${s ? s.name : ''} / </span>${m ? m.name : c.machineId}</span>`;
+  }
+
+  function renderTable() {
+    const sid = document.getElementById('stationFilter').value;
+    const mid = document.getElementById('machineFilter').value;
+    const user = getSession();
+
+    let list = MOCK_COMPONENTS;
+    if (sid) list = list.filter(c => c.stationId === sid);
+    if (mid === '__station__') list = list.filter(c => !c.machineId && c.stationId === sid);
+    else if (mid) list = list.filter(c => c.machineId === mid);
+
+    document.getElementById('compTbody').innerHTML = list.map(c => `
+      <tr>
+        <td><code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;">${c.code}</code></td>
+        <td><strong>${c.name}</strong></td>
+        <td>${getParentLabel(c)}</td>
+        <td><span class="tag ${TYPE_TAG[c.type]}">${c.type}</span></td>
+        <td>${c.unit}</td>
+        <td>${c.freq ? c.freq + ' 秒' : '事件觸發'}</td>
+        <td style="font-size:12px;color:var(--text-muted);">
+          ${c.min !== null ? `${c.min} – ${c.max} ${c.unit}` : '—'}
+        </td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" data-write-action onclick="openEditComponent('${c.id}')">編輯</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;color:var(--danger);" data-write-action onclick="deleteComponent('${c.id}')">刪除</button>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◈</div>尚無 IoT 元件</div></td></tr>';
+
+    if (user && user.role !== 'Admin') {
+      document.querySelectorAll('[data-write-action]').forEach(el => {
+        el.style.opacity='.4'; el.style.pointerEvents='none';
+      });
+    }
+  }
+
+  function componentForm(c = {}) {
+    const sOpts = MOCK_STATIONS.map(s =>
+      `<option value="${s.id}" ${c.stationId===s.id?'selected':''}>${s.name}</option>`
+    ).join('');
+    return `
+      <div class="form-row">
+        <div class="form-group">
+          <label>所屬站點</label>
+          <select id="fStation" onchange="updateMachineOpts()">${sOpts}</select>
+        </div>
+        <div class="form-group">
+          <label>所屬機台</label>
+          <select id="fMachine"><option value="">（站點層級）</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>元件代碼</label>
+          <input id="fCode" type="text" value="${c.code||''}" placeholder="ENV-TEMP" ${c.id?'readonly style="background:var(--bg)"':''}>
+        </div>
+        <div class="form-group">
+          <label>元件名稱</label>
+          <input id="fName" type="text" value="${c.name||''}" placeholder="溫度感測器">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>資料類型</label>
+          <select id="fType">
+            <option ${c.type==='Telemetry'?'selected':''}>Telemetry</option>
+            <option ${c.type==='Event'?'selected':''}>Event</option>
+            <option ${c.type==='Command'?'selected':''}>Command</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>單位</label>
+          <input id="fUnit" type="text" value="${c.unit||''}" placeholder="°C">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>上報頻率（秒，0=事件觸發）</label>
+          <input id="fFreq" type="number" value="${c.freq||0}" min="0">
+        </div>
+        <div class="form-group"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>正常範圍 - 最小值</label>
+          <input id="fMin" type="number" step="any" value="${c.min??''}">
+        </div>
+        <div class="form-group">
+          <label>正常範圍 - 最大值</label>
+          <input id="fMax" type="number" step="any" value="${c.max??''}">
+        </div>
+      </div>`;
+  }
+
+  function updateMachineOpts() {
+    const sid = document.getElementById('fStation').value;
+    const mf  = document.getElementById('fMachine');
+    mf.innerHTML = '<option value="">（站點層級）</option>';
+    (MOCK_MACHINES[sid]||[]).forEach(m => {
+      const o = document.createElement('option'); o.value=m.id; o.textContent=m.name; mf.appendChild(o);
+    });
+  }
+
+  function openAddComponent() {
+    openModal('新增 IoT 元件', componentForm(), () => {
+      const code = document.getElementById('fCode').value.trim();
+      const name = document.getElementById('fName').value.trim();
+      if (!code || !name) return alert('請填寫必填欄位');
+      const newC = {
+        id: 'C' + (MOCK_COMPONENTS.length+1).toString().padStart(2,'0'),
+        stationId: document.getElementById('fStation').value,
+        machineId: document.getElementById('fMachine').value || null,
+        code, name,
+        type: document.getElementById('fType').value,
+        unit: document.getElementById('fUnit').value,
+        freq: parseFloat(document.getElementById('fFreq').value) || 0,
+        min:  document.getElementById('fMin').value !== '' ? parseFloat(document.getElementById('fMin').value) : null,
+        max:  document.getElementById('fMax').value !== '' ? parseFloat(document.getElementById('fMax').value) : null,
+      };
+      MOCK_COMPONENTS.push(newC);
+      renderTable(); closeModal();
+    }, 'lg');
+    updateMachineOpts();
+  }
+
+  function openEditComponent(id) {
+    const c = MOCK_COMPONENTS.find(x => x.id === id);
+    openModal('編輯 IoT 元件', componentForm(c), () => {
+      c.name = document.getElementById('fName').value.trim();
+      c.type = document.getElementById('fType').value;
+      c.unit = document.getElementById('fUnit').value;
+      c.freq = parseFloat(document.getElementById('fFreq').value) || 0;
+      c.min  = document.getElementById('fMin').value !== '' ? parseFloat(document.getElementById('fMin').value) : null;
+      c.max  = document.getElementById('fMax').value !== '' ? parseFloat(document.getElementById('fMax').value) : null;
+      renderTable(); closeModal();
+    }, 'lg');
+    // Set machine dropdown after render
+    setTimeout(() => {
+      document.getElementById('fStation').value = c.stationId;
+      updateMachineOpts();
+      document.getElementById('fMachine').value = c.machineId || '';
+    }, 0);
+  }
+
+  function deleteComponent(id) {
+    if (!confirm('確定刪除此 IoT 元件？')) return;
+    const i = MOCK_COMPONENTS.findIndex(x => x.id === id);
+    if (i > -1) MOCK_COMPONENTS.splice(i, 1);
+    renderTable();
+  }
+
+  renderTable();
+  onStationChange();
+</script>
+</body>
+</html>

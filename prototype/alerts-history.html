@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>willThx — 歷史告警</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="sidebarMount"></div>
+<div class="main">
+  <header class="page-header">
+    <div>
+      <div class="page-title">歷史告警</div>
+      <div class="page-subtitle">告警中心 / 歷史告警</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" onclick="exportCSV()">↓ 匯出 CSV</button>
+    </div>
+  </header>
+  <div class="page-body">
+    <div class="filter-bar">
+      <input type="date" id="fDateFrom" value="2026-08-01">
+      <span style="color:var(--text-muted);font-size:13px;">至</span>
+      <input type="date" id="fDateTo"   value="2026-08-07">
+      <select id="fStation">
+        <option value="">所有站點</option>
+      </select>
+      <select id="fSeverity">
+        <option value="">所有嚴重度</option>
+        <option value="high">高</option>
+        <option value="low">低</option>
+      </select>
+      <select id="fStatus">
+        <option value="">所有狀態</option>
+        <option value="open">未處理</option>
+        <option value="ack">已處理</option>
+      </select>
+      <button class="btn btn-primary" onclick="renderTable()">查詢</button>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">查詢結果</span>
+        <span id="resultCount" style="font-size:12px;color:var(--text-muted);margin-left:8px;"></span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>嚴重度</th>
+                <th>時間</th>
+                <th>告警訊息</th>
+                <th>站點</th>
+                <th>機台</th>
+                <th>數值</th>
+                <th>狀態</th>
+                <th>處理人</th>
+              </tr>
+            </thead>
+            <tbody id="historyTbody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination" style="padding:12px 16px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modalMount"></div>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  document.getElementById('sidebarMount').innerHTML = renderSidebar();
+  document.getElementById('modalMount').innerHTML = MODAL_HTML;
+  initApp();
+
+  const sf = document.getElementById('fStation');
+  MOCK_STATIONS.forEach(s => {
+    const o = document.createElement('option'); o.value=s.name; o.textContent=s.name; sf.appendChild(o);
+  });
+
+  // Generate mock history data
+  const HISTORY = [];
+  const MSGS = [
+    { sev:'high', msg:'回流區溫度超標',       station:'回流焊',   machine:'回焊爐-01' },
+    { sev:'high', msg:'AOI 連續 fail（錫橋）', station:'AOI 檢測', machine:'AOI機-01'  },
+    { sev:'low',  msg:'站區濕度偏高',          station:'廠務監控', machine:'—'         },
+    { sev:'high', msg:'印刷厚度低於下限',      station:'錫膏印刷', machine:'印刷機-02' },
+    { sev:'low',  msg:'電表功耗異常升高',      station:'廠務監控', machine:'—'         },
+    { sev:'high', msg:'鎖點扭力超標',          station:'最終組裝', machine:'組裝台-01' },
+    { sev:'low',  msg:'傳送速度波動',          station:'回流焊',   machine:'回焊爐-02' },
+  ];
+  const OPERATORS = ['李操作員','陳操作員'];
+  const NOTES = ['已通知廠務','已更換耗材','已調整參數','已重啟設備','已報告主管'];
+
+  for (let d = 0; d < 7; d++) {
+    const date = new Date('2026-08-07');
+    date.setDate(date.getDate() - d);
+    const dateStr = date.getFullYear()+'-'+(date.getMonth()+1).toString().padStart(2,'0')+'-'+date.getDate().toString().padStart(2,'0');
+    const count = 3 + Math.floor(Math.random()*5);
+    for (let i = 0; i < count; i++) {
+      const tmpl = MSGS[Math.floor(Math.random()*MSGS.length)];
+      const h = Math.floor(Math.random()*24), m2 = Math.floor(Math.random()*60), s2 = Math.floor(Math.random()*60);
+      const isAck = Math.random() > 0.3;
+      HISTORY.push({
+        id: `H${HISTORY.length+1}`,
+        ...tmpl,
+        time: `${dateStr} ${h.toString().padStart(2,'0')}:${m2.toString().padStart(2,'0')}:${s2.toString().padStart(2,'0')}`,
+        value: tmpl.sev === 'high' ? '超出閾值' : '偏高',
+        status: isAck ? 'ack' : 'open',
+        ackBy: isAck ? OPERATORS[Math.floor(Math.random()*OPERATORS.length)] : null,
+        ackNote: isAck ? NOTES[Math.floor(Math.random()*NOTES.length)] : '',
+      });
+    }
+  }
+  HISTORY.sort((a,b) => b.time.localeCompare(a.time));
+
+  const PAGE_SIZE = 15;
+  let currentPage = 1;
+  let filteredData = [];
+
+  function renderTable() {
+    const from    = document.getElementById('fDateFrom').value;
+    const to      = document.getElementById('fDateTo').value;
+    const station = document.getElementById('fStation').value;
+    const sev     = document.getElementById('fSeverity').value;
+    const status  = document.getElementById('fStatus').value;
+
+    filteredData = HISTORY.filter(a => {
+      const d = a.time.split(' ')[0];
+      if (from && d < from) return false;
+      if (to   && d > to)   return false;
+      if (station && a.station !== station) return false;
+      if (sev     && a.sev     !== sev)     return false;
+      if (status  && a.status  !== status)  return false;
+      return true;
+    });
+
+    document.getElementById('resultCount').textContent = `共 ${filteredData.length} 筆`;
+    currentPage = 1;
+    renderPage();
+  }
+
+  function renderPage() {
+    const start = (currentPage-1)*PAGE_SIZE;
+    const page  = filteredData.slice(start, start+PAGE_SIZE);
+
+    document.getElementById('historyTbody').innerHTML = page.map(a => `
+      <tr style="cursor:pointer;" onclick="showContext('${a.id}')">
+        <td class="severity-${a.sev}">${a.sev==='high'?'● 高':'○ 低'}</td>
+        <td style="font-size:12px;color:var(--text-muted);white-space:nowrap;">${a.time}</td>
+        <td>${a.msg}</td>
+        <td>${a.station}</td>
+        <td style="font-size:12px;color:var(--text-muted);">${a.machine}</td>
+        <td style="font-size:12px;">${a.value}</td>
+        <td>
+          ${a.status==='ack'
+            ? '<span class="badge badge-success">已處理</span>'
+            : '<span class="badge badge-warning">未處理</span>'}
+        </td>
+        <td style="font-size:12px;color:var(--text-muted);">${a.ackBy||'—'}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="8"><div class="empty-state">查無符合條件的告警記錄</div></td></tr>';
+
+    renderPagination();
+  }
+
+  function renderPagination() {
+    const total = Math.ceil(filteredData.length / PAGE_SIZE);
+    const pg = document.getElementById('pagination');
+    if (total <= 1) { pg.innerHTML=''; return; }
+
+    let html = '';
+    html += `<div class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'style="opacity:.4;pointer-events:none"':''}>‹</div>`;
+    for (let i=1; i<=total; i++) {
+      if (i===1 || i===total || Math.abs(i-currentPage)<=1) {
+        html += `<div class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</div>`;
+      } else if (Math.abs(i-currentPage)===2) {
+        html += `<span style="padding:0 4px;color:var(--text-muted);">…</span>`;
+      }
+    }
+    html += `<div class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===total?'style="opacity:.4;pointer-events:none"':''}>›</div>`;
+    pg.innerHTML = html;
+  }
+
+  function goPage(p) {
+    const total = Math.ceil(filteredData.length / PAGE_SIZE);
+    if (p < 1 || p > total) return;
+    currentPage = p;
+    renderPage();
+  }
+
+  function showContext(id) {
+    const a = HISTORY.find(x => x.id === id);
+    // Simulate telemetry context around alert time
+    const n = 30;
+    const labels = timeLabels(n, 10);
+    const spike = Math.floor(n * 0.7);
+    const baseVal = 245, spikeVal = 265;
+    const data = Array.from({length:n}, (_,i) => {
+      if (i === spike) return spikeVal;
+      return baseVal + (Math.random()-0.5)*6;
+    });
+
+    openModal(`告警上下文 — ${a.msg}`, `
+      <div class="info-row" style="margin-bottom:16px;">
+        <div class="info-item"><div class="info-label">時間</div><div class="info-value">${a.time}</div></div>
+        <div class="info-item"><div class="info-label">站點</div><div class="info-value">${a.station}</div></div>
+        <div class="info-item"><div class="info-label">機台</div><div class="info-value">${a.machine}</div></div>
+        ${a.ackBy ? `<div class="info-item"><div class="info-label">處理人</div><div class="info-value">${a.ackBy} — ${a.ackNote}</div></div>`:''}
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">告警前後 5 分鐘感測數值</div>
+      <canvas id="ctxChart" width="600" height="180" style="width:100%;"></canvas>
+    `, null, 'lg');
+
+    setTimeout(() => {
+      const c = document.getElementById('ctxChart');
+      if (c) { c.width=c.offsetWidth||600; drawLineChart(c, [{data, color:'#ef4444'}], labels); }
+    }, 50);
+  }
+
+  function exportCSV() {
+    const headers = ['嚴重度','時間','告警訊息','站點','機台','狀態','處理人','備註'];
+    const rows = filteredData.map(a => [a.sev,a.time,a.msg,a.station,a.machine,a.status,a.ackBy||'',a.ackNote]);
+    const csv  = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='alerts-history.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  renderTable();
+</script>
+</body>
+</html>

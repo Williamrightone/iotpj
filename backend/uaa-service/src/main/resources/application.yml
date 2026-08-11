@@ -1,0 +1,61 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: uaa-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:uaa_db}
+    username: ${DB_USER:willthx}
+    password: ${DB_PASSWORD:willthx}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+
+# Snowflake ID 生成器（Worker ID，Kubernetes 環境由 env 注入）
+snowflake:
+  worker-id: ${SNOWFLAKE_WORKER_ID:1}
+
+# JWT RS256 設定（金鑰路徑由 SDD 完成後細化）
+jwt:
+  private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:keys/private.pem}
+  public-key-path:  ${JWT_PUBLIC_KEY_PATH:classpath:keys/public.pem}
+  access-token-expiry-seconds:  ${JWT_ACCESS_EXPIRY:3600}    # 1 小時
+  refresh-token-expiry-seconds: ${JWT_REFRESH_EXPIRY:604800} # 7 天
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.willthx: INFO

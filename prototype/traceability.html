@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>willThx — 板件追溯</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .tl-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 12px;
+    }
+    .tl-card-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+    }
+    .tl-card-header .tl-dot { position: static; margin: 0; }
+    .expand-btn {
+      font-size: 12px; color: var(--primary); cursor: pointer;
+      background: none; border: none; padding: 0; font: inherit;
+      margin-top: 6px; display: flex; align-items: center; gap: 4px;
+    }
+    .expand-btn:hover { text-decoration: underline; }
+    .raw-data { display: none; margin-top: 12px; }
+    .raw-data.open { display: block; }
+  </style>
+</head>
+<body>
+<div id="sidebarMount"></div>
+<div class="main">
+  <header class="page-header">
+    <div>
+      <div class="page-title">板件追溯</div>
+      <div class="page-subtitle">資料查詢 / 板件追溯</div>
+    </div>
+  </header>
+  <div class="page-body">
+
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-body">
+        <div style="max-width:500px;">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:8px;">輸入板件序號（unitSerial）</label>
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="e.g. PCB-2026-00042" onkeydown="if(event.key==='Enter')doSearch()">
+            <button onclick="doSearch()">查詢</button>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--text-muted);">快速範例：</span>
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="quickSearch('PCB-2026-00042')">PCB-2026-00042</button>
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="quickSearch('PCB-2026-00038')">PCB-2026-00038</button>
+            <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="quickSearch('PCB-2026-00015')">PCB-2026-00015</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="resultArea"></div>
+  </div>
+</div>
+<div id="modalMount"></div>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  document.getElementById('sidebarMount').innerHTML = renderSidebar();
+  document.getElementById('modalMount').innerHTML = MODAL_HTML;
+  initApp();
+
+  function quickSearch(val) {
+    document.getElementById('searchInput').value = val;
+    doSearch();
+  }
+
+  // Mock unit data generator
+  function generateUnit(serial) {
+    const seed = serial.split('').reduce((a,c) => a + c.charCodeAt(0), 0);
+    const rand = (min, max) => min + ((seed * 9301 + 49297) % 233280) / 233280 * (max - min);
+    const rnd  = (base, noise) => +(base + (Math.random()-.5)*noise).toFixed(2);
+
+    const lotNum = Math.floor(parseInt(serial.split('-')[2]) / 20) + 1;
+    const lotId  = `Lot-${lotNum.toString().padStart(3,'0')}`;
+
+    const baseTime = new Date('2026-08-07T08:00:00');
+    baseTime.setMinutes(baseTime.getMinutes() + (parseInt(serial.split('-')[2]) % 20) * 5);
+
+    function addMin(date, m) { return new Date(date.getTime() + m*60000); }
+    function fmt(d) {
+      return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0')+
+        ' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')+':'+d.getSeconds().toString().padStart(2,'0');
+    }
+
+    const s1In = baseTime;
+    const s1Out = addMin(s1In, 10);
+    const s2In  = addMin(s1Out, 2);
+    const s2Out = addMin(s2In, 10);
+    const s3In  = addMin(s2Out, 2);
+    const s3Out = addMin(s3In, 10);
+    const s4In  = addMin(s3Out, 2);
+    const s4Out = addMin(s4In, 10);
+
+    const aoiPass = Math.random() > 0.12;
+    const reReview = !aoiPass && Math.random() > 0.4;
+    const s3TempSpike = Math.random() > 0.75;
+    const s4TestPass = Math.random() > 0.05;
+
+    return {
+      serial, lotId,
+      stations: [
+        {
+          name: '錫膏印刷', id:'S01', machine:'印刷機-01', machineId:'M01',
+          status: 'ok',
+          inTime: fmt(s1In), outTime: fmt(s1Out),
+          operator: '李操作員',
+          summary: `刮刀壓力 avg ${rnd(2.1,.3)} kgf　印刷厚度 avg ${rnd(0.15,.02)} mm　刮刀速度 avg ${rnd(55,8)} mm/s`,
+          alerts: [],
+          metrics: [
+            { name:'刮刀壓力 (kgf)', color:'#2563eb', data: randomWalk(2.1,.3,20) },
+            { name:'印刷厚度 (mm)',  color:'#10b981', data: randomWalk(0.15,.02,20) },
+          ],
+        },
+        {
+          name: 'AOI 檢測', id:'S02', machine:'AOI機-01', machineId:'M03',
+          status: aoiPass ? 'ok' : (reReview ? 'ok' : 'warn'),
+          inTime: fmt(s2In), outTime: fmt(s2Out),
+          operator: '陳操作員',
+          summary: aoiPass
+            ? '機器判定：PASS'
+            : `機器判定：FAIL（錫橋缺陷）${reReview ? '　複判：PASS（李操作員）' : ''}`,
+          alerts: aoiPass ? [] : ['AOI 缺陷觸發（錫橋）'],
+          metrics: [],
+        },
+        {
+          name: '回流焊', id:'S03', machine:'回焊爐-01', machineId:'M05',
+          status: s3TempSpike ? 'warn' : 'ok',
+          inTime: fmt(s3In), outTime: fmt(s3Out),
+          operator: '李操作員',
+          summary: s3TempSpike
+            ? `回流區溫度曾超標 +${rnd(3,2)} °C　傳送速度 avg ${rnd(60,3)} cm/min`
+            : `回流區溫度 avg ${rnd(245,4)} °C　傳送速度 avg ${rnd(60,3)} cm/min`,
+          alerts: s3TempSpike ? ['回流區溫度超標'] : [],
+          metrics: [
+            { name:'回流區溫度 (°C)', color:'#ef4444', data: (() => {
+              const d = randomWalk(245,4,20);
+              if (s3TempSpike) d[12] = 263;
+              return d;
+            })() },
+            { name:'傳送速度 (cm/min)', color:'#10b981', data: randomWalk(60,3,20) },
+          ],
+        },
+        {
+          name: '最終組裝', id:'S04', machine:'組裝台-01', machineId:'M07',
+          status: s4TestPass ? 'ok' : 'warn',
+          inTime: fmt(s4In), outTime: fmt(s4Out),
+          operator: '陳操作員',
+          summary: `鎖點扭力 avg ${rnd(1.2,.15)} N·m　功能測試：${s4TestPass ? 'PASS' : 'FAIL'}`,
+          alerts: s4TestPass ? [] : ['功能測試 FAIL'],
+          metrics: [],
+        },
+      ],
+    };
+  }
+
+  function doSearch() {
+    const val = document.getElementById('searchInput').value.trim();
+    if (!val) return;
+    const unit = generateUnit(val);
+    renderResult(unit);
+  }
+
+  function renderResult(unit) {
+    const allAlerts = unit.stations.flatMap(s => s.alerts);
+    const overallOk = unit.stations.every(s => s.status === 'ok');
+
+    document.getElementById('resultArea').innerHTML = `
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-body">
+          <div class="info-row">
+            <div class="info-item">
+              <div class="info-label">板件序號</div>
+              <div class="info-value" style="font-family:monospace;">${unit.serial}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">批號</div>
+              <div class="info-value">${unit.lotId}</div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">整體結果</div>
+              <div class="info-value">
+                ${overallOk
+                  ? '<span class="badge badge-success">全站通過</span>'
+                  : '<span class="badge badge-warning">有異常記錄</span>'}
+              </div>
+            </div>
+            <div class="info-item">
+              <div class="info-label">告警記錄</div>
+              <div class="info-value">${allAlerts.length ? allAlerts.join('、') : '無'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="position:relative;padding-left:32px;">
+        <div style="position:absolute;left:14px;top:24px;bottom:24px;width:2px;background:var(--border);"></div>
+        ${unit.stations.map((s, idx) => `
+          <div class="tl-card" style="position:relative;">
+            <div style="position:absolute;left:-26px;top:20px;width:14px;height:14px;border-radius:50%;
+              background:${s.status==='ok'?'var(--success)':s.status==='warn'?'var(--warning)':'var(--border)'};
+              border:2px solid var(--surface);box-shadow:0 0 0 2px ${s.status==='ok'?'var(--success)':s.status==='warn'?'var(--warning)':'var(--border)'};">
+            </div>
+
+            <div class="tl-card-header">
+              <div>
+                <div style="font-size:14px;font-weight:700;">${s.name}</div>
+                <div style="font-size:12px;color:var(--text-muted);">${s.machine}</div>
+              </div>
+              <div style="margin-left:auto;text-align:right;">
+                <div style="font-size:12px;color:var(--text-muted);">
+                  ${s.inTime.split(' ')[1]} 上料 → ${s.outTime.split(' ')[1]} 下料
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);">操作員：${s.operator}</div>
+              </div>
+              ${s.status==='ok'
+                ? '<span class="badge badge-success" style="flex-shrink:0;">正常</span>'
+                : '<span class="badge badge-warning" style="flex-shrink:0;">有異常</span>'}
+            </div>
+
+            <div style="font-size:13px;color:var(--text);">${s.summary}</div>
+
+            ${s.alerts.length ? `
+              <div style="margin-top:8px;">
+                ${s.alerts.map(a => `<span class="badge badge-danger" style="font-size:11px;margin-right:4px;">⚑ ${a}</span>`).join('')}
+              </div>
+            ` : ''}
+
+            ${s.metrics.length ? `
+              <button class="expand-btn" onclick="toggleRaw(this)">
+                ▶ 展開原始感測數據
+              </button>
+              <div class="raw-data">
+                <canvas id="chart_${idx}" width="600" height="160" style="width:100%;margin-top:8px;"></canvas>
+                <div id="legend_${idx}" style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap;"></div>
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    // Draw charts after render
+    unit.stations.forEach((s, idx) => {
+      if (!s.metrics.length) return;
+      const c = document.getElementById(`chart_${idx}`);
+      const lg = document.getElementById(`legend_${idx}`);
+      if (c) {
+        c.width = c.offsetWidth || 600;
+        drawLineChart(c, s.metrics, timeLabels(20, 30));
+      }
+      if (lg) {
+        lg.innerHTML = s.metrics.map(m =>
+          `<span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);">
+            <span style="width:14px;height:3px;background:${m.color};border-radius:2px;display:inline-block;"></span>
+            ${m.name}
+          </span>`
+        ).join('');
+      }
+    });
+  }
+
+  function toggleRaw(btn) {
+    const raw = btn.nextElementSibling;
+    const open = raw.classList.toggle('open');
+    btn.textContent = (open ? '▼' : '▶') + ' 展開原始感測數據';
+    // Draw chart on first open
+    if (open) {
+      const c = raw.querySelector('canvas');
+      if (c && c.dataset.drawn !== '1') {
+        c.dataset.drawn = '1';
+        c.width = c.offsetWidth || 600;
+      }
+    }
+  }
+</script>
+</body>
+</html>
