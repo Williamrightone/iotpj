@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useUiStore } from '../stores/ui'
@@ -8,14 +9,27 @@ const router = useRouter()
 const auth   = useAuthStore()
 const ui     = useUiStore()
 
-const menuItems = [
-  { section: '概覽' },
-  { label: '儀表板', icon: '◈', path: '/dashboard' },
-  { section: '系統管理' },
-  { label: '使用者管理', icon: '◉', path: '/users',            adminOnly: true },
-  { label: '功能管理',   icon: '◆', path: '/features' },
-  { label: '角色權限',   icon: '◇', path: '/role-permissions' },
-]
+const ICON_MAP = {
+  DASHBOARD:      '◈',
+  USER_LIST:      '◉',
+  SYS_FEATURES:   '◆',
+  SYS_ROLE_PERMS: '◇',
+}
+
+// 將平坦陣列組成 [{ group, children[] }]，依 sortOrder 排序
+const menuGroups = computed(() => {
+  const features = auth.user?.features || []
+  const parents  = features
+    .filter(f => f.parentId === null)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+
+  return parents.map(parent => ({
+    group:    parent,
+    children: features
+      .filter(f => f.parentId === parent.featureId)
+      .sort((a, b) => a.sortOrder - b.sortOrder),
+  }))
+})
 
 async function handleLogout() {
   ui.loading = true
@@ -32,18 +46,18 @@ async function handleLogout() {
       <div class="sidebar-logo-sub">Admin Portal</div>
     </div>
 
-    <template v-for="item in menuItems" :key="item.label || item.section">
-      <div v-if="item.section" class="sidebar-section">{{ item.section }}</div>
-      <template v-else-if="!item.adminOnly || auth.isAdmin">
-        <router-link
-          :to="item.path"
-          class="sidebar-item"
-          :class="{ active: route.path === item.path }"
-        >
-          <span class="sidebar-icon">{{ item.icon }}</span>
-          {{ item.label }}
-        </router-link>
-      </template>
+    <template v-for="{ group, children } in menuGroups" :key="group.featureId">
+      <div class="sidebar-section">{{ group.featureName }}</div>
+      <router-link
+        v-for="child in children"
+        :key="child.featureId"
+        :to="child.route"
+        class="sidebar-item"
+        :class="{ active: route.path === child.route }"
+      >
+        <span class="sidebar-icon">{{ ICON_MAP[child.featureCode] || '▸' }}</span>
+        {{ child.featureName }}
+      </router-link>
     </template>
 
     <div class="sidebar-bottom">

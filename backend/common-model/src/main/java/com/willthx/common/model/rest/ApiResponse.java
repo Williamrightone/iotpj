@@ -1,5 +1,7 @@
 package com.willthx.common.model.rest;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 
 /**
@@ -23,7 +25,11 @@ public class ApiResponse<T> {
     private final String msg;
     private final T      data;
 
-    private ApiResponse(String responseCode, String msg, T data) {
+    @JsonCreator
+    private ApiResponse(
+            @JsonProperty("responseCode") String responseCode,
+            @JsonProperty("msg")          String msg,
+            @JsonProperty("data")         T      data) {
         this.responseCode = responseCode;
         this.msg          = msg;
         this.data         = data;
