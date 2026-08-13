@@ -37,16 +37,17 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logout() {
     const rt = refreshToken.value
-    // 清除 local 狀態（無論 API 成敗）
+    // 先打 API（token 仍在 localStorage，Authorization header 才能帶出去）
+    if (rt) {
+      await api.logout(rt).catch(() => {})
+    }
+    // API 完成後再清除本地狀態
     accessToken.value  = ''
     refreshToken.value = ''
     user.value         = null
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
     localStorage.removeItem('userInfo')
-    if (rt) {
-      await api.logout(rt).catch(() => {})
-    }
   }
 
   return { accessToken, refreshToken, user, isLoggedIn, isAdmin, displayName, login, logout }

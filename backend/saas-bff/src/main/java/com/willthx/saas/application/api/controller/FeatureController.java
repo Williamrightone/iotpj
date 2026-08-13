@@ -9,6 +9,7 @@ import com.willthx.saas.application.usecase.feature.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,17 +31,20 @@ public class FeatureController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<FeatureRs>> createFeature(@Valid @RequestBody CreateFeatureRq rq) {
         return ResponseEntity.ok(ApiResponse.success(createFeatureUseCase.execute(rq)));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<FeatureRs>> updateFeature(@PathVariable Long id,
                                                                 @Valid @RequestBody UpdateFeatureRq rq) {
         return ResponseEntity.ok(ApiResponse.success(updateFeatureUseCase.execute(id, rq)));
     }
 
     @PutMapping("/{id}/active")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> setActive(@PathVariable Long id,
                                                        @RequestBody UpdateActiveRq rq) {
         setFeatureActiveUseCase.execute(id, rq);
@@ -48,6 +52,7 @@ public class FeatureController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteFeature(@PathVariable Long id) {
         deleteFeatureUseCase.execute(id);
         return ResponseEntity.ok(ApiResponse.success());

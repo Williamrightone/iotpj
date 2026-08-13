@@ -9,6 +9,7 @@ import com.willthx.saas.application.usecase.user.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,6 +28,7 @@ public class UserController {
     private final UpdateStationsUseCase updateStationsUseCase;
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<UserRs>>> listUsers() {
         return ResponseEntity.ok(ApiResponse.success(getUsersUseCase.execute()));
     }
@@ -37,17 +39,20 @@ public class UserController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserRs>> createUser(@Valid @RequestBody CreateUserRq rq) {
         return ResponseEntity.ok(ApiResponse.success(createUserUseCase.execute(rq)));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserRs>> updateUser(@PathVariable Long id,
                                                           @Valid @RequestBody UpdateUserRq rq) {
         return ResponseEntity.ok(ApiResponse.success(updateUserUseCase.execute(id, rq)));
     }
 
     @PostMapping("/{id}/disable")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> disableUser(@PathVariable Long id) {
         disableUserUseCase.execute(id);
         return ResponseEntity.ok(ApiResponse.success());
@@ -59,6 +64,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}/stations")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> updateStations(@PathVariable Long id,
                                                             @RequestBody UpdateStationsRq rq) {
         updateStationsUseCase.execute(id, rq);

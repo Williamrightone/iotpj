@@ -6,9 +6,10 @@ import api from '../api'
 
 const auth = useAuthStore()
 
-const users    = ref([])
-const features = ref([])
-const loading  = ref(false)
+const users   = ref([])
+const loading = ref(false)
+
+const features = computed(() => auth.user?.features || [])
 
 const roleLabel = {
   ADMIN:      '系統管理員',
@@ -34,14 +35,10 @@ const now = new Date()
 const dateStr = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}  ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
 
 onMounted(async () => {
+  if (!auth.isAdmin) return
   loading.value = true
   try {
-    const [f, u] = await Promise.all([
-      api.listFeatures(),
-      auth.isAdmin ? api.listUsers().catch(() => []) : Promise.resolve([]),
-    ])
-    features.value = f || []
-    users.value    = u || []
+    users.value = await api.listUsers().catch(() => [])
   } finally {
     loading.value = false
   }

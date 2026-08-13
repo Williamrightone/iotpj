@@ -6,6 +6,7 @@ import com.willthx.saas.application.usecase.feature.GetRolePermissionsUseCase;
 import com.willthx.saas.application.usecase.feature.UpdateRolePermissionsUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -24,6 +25,7 @@ public class RolePermissionController {
     }
 
     @PutMapping("/{role}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> updateRolePermissions(@PathVariable String role,
                                                                    @RequestBody UpdateRolePermissionsRq rq) {
         updateRolePermissionsUseCase.execute(role, rq);

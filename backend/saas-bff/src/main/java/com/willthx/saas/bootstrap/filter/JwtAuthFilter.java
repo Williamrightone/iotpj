@@ -16,6 +16,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -98,10 +101,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 .stationIds(stationIds)
                 .build());
 
+        // 讓 Spring Security 知道此請求已通過驗證
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role.name())));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
         try {
             chain.doFilter(req, res);
         } finally {
             UserContextHolder.clear();
+            SecurityContextHolder.clearContext();
         }
     }
 
