@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>willThx — 角色權限設定</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="sidebarMount"></div>
+<div class="main">
+  <header class="page-header">
+    <div>
+      <div class="page-title">角色權限設定</div>
+      <div class="page-subtitle">系統設定 / 角色權限設定</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" onclick="savePermissions()">儲存設定</button>
+    </div>
+  </header>
+  <div class="page-body">
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>功能</th>
+                <th style="text-align:center;width:100px;">Admin</th>
+                <th style="text-align:center;width:120px;">Maintainer</th>
+                <th style="text-align:center;width:100px;">Viewer</th>
+              </tr>
+            </thead>
+            <tbody id="permTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:var(--text-muted);">
+      Admin 自動擁有所有功能，無需設定。新增功能後，請至此頁面為各角色配置權限。
+    </div>
+  </div>
+</div>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  if (!requireRole('Admin')) window.location.href = 'users.html';
+
+  document.getElementById('sidebarMount').innerHTML = renderSidebar();
+  initApp();
+
+  // Working copy of permissions (modified by checkboxes, saved on button click)
+  const workingPerms = {
+    Maintainer: new Set(MOCK_ROLE_PERMISSIONS.Maintainer),
+    Viewer:     new Set(MOCK_ROLE_PERMISSIONS.Viewer),
+  };
+
+  function renderTable() {
+    const parents = MOCK_FEATURES.filter(f => f.parentId === null).sort((a,b) => a.sort - b.sort);
+    let rows = '';
+    parents.forEach(parent => {
+      const children = MOCK_FEATURES.filter(f => f.parentId === parent.id).sort((a,b) => a.sort - b.sort);
+      if (children.length === 0) return;
+      rows += `
+        <tr style="background:var(--bg);">
+          <td colspan="4"><strong>${parent.name}</strong></td>
+        </tr>`;
+      children.forEach(child => {
+        rows += `
+          <tr>
+            <td style="padding-left:32px;">
+              <span style="color:var(--text-muted);margin-right:6px;">└</span>${child.name}
+            </td>
+            <td style="text-align:center;">
+              <input type="checkbox" checked disabled style="width:16px;height:16px;opacity:.4;cursor:not-allowed;">
+            </td>
+            <td style="text-align:center;">
+              <input type="checkbox" id="mt_${child.code}"
+                ${workingPerms.Maintainer.has(child.code) ? 'checked' : ''}
+                style="width:16px;height:16px;cursor:pointer;"
+                onchange="togglePerm('Maintainer','${child.code}',this.checked)">
+            </td>
+            <td style="text-align:center;">
+              <input type="checkbox" id="vw_${child.code}"
+                ${workingPerms.Viewer.has(child.code) ? 'checked' : ''}
+                style="width:16px;height:16px;cursor:pointer;"
+                onchange="togglePerm('Viewer','${child.code}',this.checked)">
+            </td>
+          </tr>`;
+      });
+    });
+    document.getElementById('permTbody').innerHTML = rows;
+  }
+
+  function togglePerm(role, code, checked) {
+    if (checked) workingPerms[role].add(code);
+    else workingPerms[role].delete(code);
+  }
+
+  function savePermissions() {
+    MOCK_ROLE_PERMISSIONS.Maintainer = [...workingPerms.Maintainer];
+    MOCK_ROLE_PERMISSIONS.Viewer     = [...workingPerms.Viewer];
+    alert('權限設定已儲存。');
+  }
+
+  renderTable();
+</script>
+</body>
+</html>

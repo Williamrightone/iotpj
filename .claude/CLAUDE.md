@@ -7,7 +7,7 @@ PCB 製造業 SaaS IoT 平台。回應使用繁體中文。
 ## 技術棧速覽
 
 Java 21 + Spring Boot 3.x | Maven 多模組 | PostgreSQL 16 | TimescaleDB | Redis 7
-Kafka 4.x (KRaft) | RabbitMQ | EMQX | Kubernetes | 前端：純 HTML/CSS/JS
+Kafka 3.9 (KRaft) | RabbitMQ | EMQX | Kubernetes | 前端：純 HTML/CSS/JS
 
 ---
 

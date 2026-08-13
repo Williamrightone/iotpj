@@ -38,42 +38,6 @@
         </div>
       </div>
     </div>
-
-    <div class="card" style="margin-top:20px;">
-      <div class="card-header"><span class="card-title">角色權限說明</span></div>
-      <div class="card-body" style="padding:0;">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>功能</th>
-                <th style="text-align:center;">Admin</th>
-                <th style="text-align:center;">Operator</th>
-                <th style="text-align:center;">Viewer</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${[
-                ['Dashboard 查看',         '✅','✅','✅'],
-                ['製程設定（讀）',           '✅','✅','✅'],
-                ['製程設定（寫）',           '✅','✗','✗'],
-                ['即時 / 歷史告警（查看）', '✅','✅','✅'],
-                ['告警 Acknowledge',       '✅','✅','✗'],
-                ['告警規則設定',            '✅','✗','✗'],
-                ['資料查詢 / 追溯',         '✅','✅','✅'],
-                ['使用者管理',              '✅','✗','✗'],
-                ['通知設定',               '✅','✗','✗'],
-              ].map(([feat,...cols]) => `
-                <tr>
-                  <td>${feat}</td>
-                  ${cols.map(v => `<td style="text-align:center;">${v}</td>`).join('')}
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 <div id="modalMount"></div>
@@ -84,7 +48,7 @@
   document.getElementById('modalMount').innerHTML = MODAL_HTML;
   initApp();
 
-  const ROLE_BADGE = { Admin:'badge-danger', Operator:'badge-info', Viewer:'badge-neutral' };
+  const ROLE_BADGE = { Admin:'badge-danger', Maintainer:'badge-info', Viewer:'badge-neutral' };
 
   function renderTable() {
     document.getElementById('userTbody').innerHTML = MOCK_USERS.map(u => `
@@ -104,16 +68,22 @@
             <span class="toggle-slider"></span>
           </label>
         </td>
-        <td data-admin-only style="display:flex;gap:6px;">
+        <td data-admin-only>
           <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="openEditUser('${u.id}')">編輯</button>
-          <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;color:var(--danger);" onclick="deleteUser('${u.id}')">刪除</button>
         </td>
       </tr>
     `).join('');
   }
 
   function toggleUser(id, active) {
-    const u = MOCK_USERS.find(x => x.id === id); if (u) u.active = active;
+    const u = MOCK_USERS.find(x => x.id === id);
+    const me = getSession();
+    if (u && u.username === me.username) {
+      alert('不能停用自己的帳號');
+      renderTable();
+      return;
+    }
+    if (u) u.active = active;
   }
 
   function userForm(u = {}) {
@@ -132,7 +102,7 @@
         <label>角色</label>
         <select id="fRole">
           <option ${u.role==='Admin'?'selected':''}>Admin</option>
-          <option ${u.role==='Operator'?'selected':''}>Operator</option>
+          <option ${u.role==='Maintainer'?'selected':''}>Maintainer</option>
           <option ${u.role==='Viewer'?'selected':''}>Viewer</option>
         </select>
       </div>
@@ -140,11 +110,27 @@
       <div class="form-group">
         <label>初始密碼</label>
         <input id="fPassword" type="password" placeholder="至少 6 個字元">
-      </div>` : `<div style="font-size:12px;color:var(--text-muted);">密碼欄位保留空白則不修改</div>
+      </div>` : `
       <div class="form-group" style="margin-top:8px;">
-        <label>新密碼（選填）</label>
+        <label>重設密碼（選填）</label>
         <input id="fPassword" type="password" placeholder="留空不更改">
       </div>`}
+      <div class="form-group">
+        <label>製程站點綁定（Maintainer / Viewer 適用，空白表示可看全部）</label>
+        ${MOCK_STATIONS.length === 0
+          ? `<div style="padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text-muted);">
+               目前尚無製程站點，請先至製程配置新增站點後再設定。
+             </div>`
+          : `<div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
+               ${MOCK_STATIONS.map(s => `
+                 <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">
+                   <input type="checkbox" name="fStation" value="${s.id}"
+                     ${(u.stations||[]).includes(s.id) ? 'checked' : ''}>
+                   ${s.name}
+                 </label>`).join('')}
+             </div>`
+        }
+      </div>
     `;
   }
 
@@ -153,10 +139,11 @@
       const username = document.getElementById('fUsername').value.trim();
       const name     = document.getElementById('fName').value.trim();
       const role     = document.getElementById('fRole').value;
+      const stations = [...document.querySelectorAll('input[name="fStation"]:checked')].map(el => el.value);
       if (!username || !name) return alert('請填寫必填欄位');
       MOCK_USERS.push({
         id: 'U' + (MOCK_USERS.length+1).toString().padStart(2,'0'),
-        username, name, role, lastLogin:'—', active:true,
+        username, name, role, stations, lastLogin:'—', active:true,
       });
       renderTable(); closeModal();
     });
@@ -164,21 +151,17 @@
 
   function openEditUser(id) {
     const u = MOCK_USERS.find(x => x.id === id);
+    const me = getSession();
     openModal('編輯使用者', userForm(u), () => {
-      u.name = document.getElementById('fName').value.trim();
-      u.role = document.getElementById('fRole').value;
+      const newRole = document.getElementById('fRole').value;
+      if (u.username === me.username && newRole !== u.role) {
+        return alert('不可修改自己的角色');
+      }
+      u.name     = document.getElementById('fName').value.trim();
+      u.role     = newRole;
+      u.stations = [...document.querySelectorAll('input[name="fStation"]:checked')].map(el => el.value);
       renderTable(); closeModal();
     });
-  }
-
-  function deleteUser(id) {
-    const me = getSession();
-    const u  = MOCK_USERS.find(x => x.id === id);
-    if (u && u.username === me.username) return alert('不能刪除自己的帳號');
-    if (!confirm(`確定刪除使用者「${u?.name}」？`)) return;
-    const i = MOCK_USERS.findIndex(x => x.id === id);
-    if (i > -1) MOCK_USERS.splice(i, 1);
-    renderTable();
   }
 
   renderTable();

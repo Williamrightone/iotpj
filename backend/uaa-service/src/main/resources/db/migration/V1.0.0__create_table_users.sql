@@ -3,25 +3,19 @@
 
 CREATE TABLE users
 (
-    id             BIGINT       NOT NULL,
+    id             BIGINT       NOT NULL           COMMENT 'Snowflake ID',
     username       VARCHAR(64)  NOT NULL,
     name           VARCHAR(128) NOT NULL,
-    password_hash  VARCHAR(128) NOT NULL,
-    role           VARCHAR(20)  NOT NULL,
-    tenant_id      BIGINT,                          -- null = 平台層超級管理員
-    active         BOOLEAN      NOT NULL DEFAULT TRUE,
-    last_login_at  TIMESTAMP,
-    created_at     TIMESTAMP    NOT NULL,
-    updated_at     TIMESTAMP    NOT NULL,
+    password_hash  VARCHAR(128) NOT NULL           COMMENT 'BCrypt 雜湊',
+    role           VARCHAR(20)  NOT NULL           COMMENT 'ADMIN / MAINTAINER / VIEWER',
+    tenant_id      BIGINT                          COMMENT '所屬租戶 ID；null 表示平台層超管',
+    active         TINYINT(1)   NOT NULL DEFAULT 1,
+    last_login_at  DATETIME(3),
+    created_at     DATETIME(3)  NOT NULL,
+    updated_at     DATETIME(3)  NOT NULL,
     CONSTRAINT pk_users             PRIMARY KEY (id),
     CONSTRAINT uq_users_username    UNIQUE (username)
-);
+) COMMENT = '使用者帳號（跨租戶）';
 
 CREATE INDEX idx_users_tenant_id ON users (tenant_id);
 CREATE INDEX idx_users_username   ON users (username);
-
-COMMENT ON TABLE  users                IS '使用者帳號（跨租戶）';
-COMMENT ON COLUMN users.id            IS 'Snowflake ID';
-COMMENT ON COLUMN users.tenant_id     IS '所屬租戶 ID；null 表示平台層超管';
-COMMENT ON COLUMN users.role          IS 'ADMIN / OPERATOR / VIEWER';
-COMMENT ON COLUMN users.password_hash IS 'BCrypt 雜湊';

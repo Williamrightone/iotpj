@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>willThx — 功能管理</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="sidebarMount"></div>
+<div class="main">
+  <header class="page-header">
+    <div>
+      <div class="page-title">功能管理</div>
+      <div class="page-subtitle">系統設定 / 功能管理</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" onclick="openAddFeature()">＋ 新增功能</button>
+    </div>
+  </header>
+  <div class="page-body">
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>功能名稱</th>
+                <th>代碼</th>
+                <th>類型</th>
+                <th>路由</th>
+                <th>排序</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="featureTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="modalMount"></div>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+  if (!requireRole('Admin')) window.location.href = 'users.html';
+
+  document.getElementById('sidebarMount').innerHTML = renderSidebar();
+  document.getElementById('modalMount').innerHTML = MODAL_HTML;
+  initApp();
+
+  function renderTable() {
+    const parents = MOCK_FEATURES.filter(f => f.parentId === null).sort((a,b) => a.sort - b.sort);
+    let rows = '';
+    parents.forEach(parent => {
+      rows += `
+        <tr style="background:var(--bg);">
+          <td><strong>${parent.name}</strong></td>
+          <td style="font-family:monospace;font-size:12px;color:var(--text-muted);">${parent.code}</td>
+          <td><span class="badge badge-neutral">父功能</span></td>
+          <td style="color:var(--text-muted);">—</td>
+          <td>${parent.sort}</td>
+          <td>
+            <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="openEditFeature('${parent.id}')">編輯</button>
+          </td>
+        </tr>`;
+      MOCK_FEATURES.filter(f => f.parentId === parent.id).sort((a,b) => a.sort - b.sort).forEach(child => {
+        rows += `
+          <tr>
+            <td style="padding-left:32px;">
+              <span style="color:var(--text-muted);margin-right:6px;">└</span>${child.name}
+            </td>
+            <td style="font-family:monospace;font-size:12px;color:var(--text-muted);">${child.code}</td>
+            <td><span class="badge badge-info">子功能</span></td>
+            <td style="font-family:monospace;font-size:12px;">${child.route || '—'}</td>
+            <td>${child.sort}</td>
+            <td>
+              <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="openEditFeature('${child.id}')">編輯</button>
+            </td>
+          </tr>`;
+      });
+    });
+    document.getElementById('featureTbody').innerHTML = rows;
+  }
+
+  function featureForm(f = {}) {
+    const parentOptions = MOCK_FEATURES
+      .filter(x => x.parentId === null)
+      .map(x => `<option value="${x.id}" ${f.parentId === x.id ? 'selected' : ''}>${x.name}</option>`)
+      .join('');
+    return `
+      <div class="form-row">
+        <div class="form-group">
+          <label>功能名稱</label>
+          <input id="fName" type="text" value="${f.name||''}" placeholder="使用者管理">
+        </div>
+        <div class="form-group">
+          <label>代碼</label>
+          <input id="fCode" type="text" value="${f.code||''}" placeholder="user-mgmt" ${f.id?'readonly style="background:var(--bg)"':''}>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>父功能（選填，空白表示本身為父功能）</label>
+        <select id="fParent">
+          <option value="">— 設為父功能 —</option>
+          ${parentOptions}
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>路由（子功能必填）</label>
+          <input id="fRoute" type="text" value="${f.route||''}" placeholder="users.html">
+        </div>
+        <div class="form-group">
+          <label>圖示</label>
+          <input id="fIcon" type="text" value="${f.icon||''}" placeholder="⊙">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>排序</label>
+        <input id="fSort" type="number" value="${f.sort||1}" min="1">
+      </div>`;
+  }
+
+  function openAddFeature() {
+    openModal('新增功能', featureForm(), () => {
+      const name     = document.getElementById('fName').value.trim();
+      const code     = document.getElementById('fCode').value.trim();
+      const parentId = document.getElementById('fParent').value || null;
+      const route    = document.getElementById('fRoute').value.trim() || null;
+      const icon     = document.getElementById('fIcon').value.trim() || '◈';
+      const sort     = parseInt(document.getElementById('fSort').value) || 1;
+      if (!name || !code) return alert('請填寫功能名稱與代碼');
+      if (MOCK_FEATURES.find(f => f.code === code)) return alert('代碼已存在');
+      MOCK_FEATURES.push({
+        id: 'F' + (MOCK_FEATURES.length + 1).toString().padStart(2, '0'),
+        name, code, parentId, route, icon, sort,
+      });
+      renderTable(); closeModal();
+    });
+  }
+
+  function openEditFeature(id) {
+    const f = MOCK_FEATURES.find(x => x.id === id);
+    openModal('編輯功能', featureForm(f), () => {
+      f.name     = document.getElementById('fName').value.trim();
+      f.parentId = document.getElementById('fParent').value || null;
+      f.route    = document.getElementById('fRoute').value.trim() || null;
+      f.icon     = document.getElementById('fIcon').value.trim() || f.icon;
+      f.sort     = parseInt(document.getElementById('fSort').value) || f.sort;
+      renderTable(); closeModal();
+    });
+  }
+
+  renderTable();
+</script>
+</body>
+</html>

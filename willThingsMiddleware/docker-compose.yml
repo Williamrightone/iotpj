@@ -1,0 +1,190 @@
+services:
+
+  # ── MySQL 8 ──────────────────────────────────────────────────────────────────
+  # uaa_db (uaa-service) / iotcore_db (iotcore-service)
+  mysql:
+    image: mysql:8.0
+    container_name: willthx-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: willthx123
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init/01-create-databases.sql:/docker-entrypoint-initdb.d/01-create-databases.sql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-pwillthx123", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── TimescaleDB (PostgreSQL 16) ──────────────────────────────────────────────
+  # telemetry_db (telemetry-service) — 時序資料專用
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: willthx-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: willthx
+      POSTGRES_PASSWORD: willthx123
+      POSTGRES_DB: telemetry_db
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U willthx -d telemetry_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 7 ─────────────────────────────────────────────────────────────────
+  # Snowflake Pod ID 租約 / Session / Token 黑名單 / user:stations 快取
+  redis:
+    image: redis:7-alpine
+    container_name: willthx-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── RabbitMQ ─────────────────────────────────────────────────────────────────
+  # realtime-bff → Telegram 通知
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: willthx-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: willthx
+      RABBITMQ_DEFAULT_PASS: willthx123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"       # AMQP
+      - "15672:15672"     # Management UI
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Kafka 3.x (KRaft, 無 Zookeeper) ─────────────────────────────────────────
+  # PLAINTEXT (localhost:9092) → 本機 Spring Boot 服務連線
+  # INTERNAL  (kafka:9094)    → 容器內 kafka-ui 連線
+  kafka:
+    image: apache/kafka:latest
+    container_name: willthx-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,INTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,INTERNAL://kafka:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: willthx-kafka-cluster-01
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── Kafka UI ─────────────────────────────────────────────────────────────────
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:latest
+    container_name: willthx-kafka-ui
+    restart: unless-stopped
+    environment:
+      KAFKA_CLUSTERS_0_NAME: willthx-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9094
+    ports:
+      - "8080:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ── EMQX 5 (MQTT Broker) ────────────────────────────────────────────────────
+  # iot-adapter 訂閱設備遙測資料
+  # 注意：8083 (MQTT-WS) 不對外 map，避免與 host 上 telemetry-service:8083 衝突
+  emqx:
+    image: emqx:5.8
+    container_name: willthx-emqx
+    restart: unless-stopped
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+    ports:
+      - "1883:1883"       # MQTT (iot-adapter 連線用)
+      - "18083:18083"     # Dashboard (admin/public)
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Prometheus ───────────────────────────────────────────────────────────────
+  # 抓取所有 Spring Boot /actuator/prometheus 指標
+  # Spring Boot 服務跑在 host，透過 host.docker.internal 存取
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: willthx-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+
+  # ── Grafana ──────────────────────────────────────────────────────────────────
+  # 預設帳密 admin / willthx123
+  # Prometheus datasource 自動 provision
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: willthx-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: willthx123
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  mysql_data:
+  timescaledb_data:
+  redis_data:
+  rabbitmq_data:
+  kafka_data:
+  emqx_data:
+  emqx_log:
+  prometheus_data:
+  grafana_data:

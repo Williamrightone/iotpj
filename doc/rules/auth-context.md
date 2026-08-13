@@ -15,7 +15,7 @@
 ```java
 public enum Role {
     ADMIN,
-    OPERATOR,
+    MAINTAINER,
     VIEWER
 }
 ```
@@ -30,13 +30,14 @@ public enum Role {
 
 ```java
 public class UserContext {
-    private Long   userId;      // 使用者 ID（Snowflake）
-    private String username;    // 登入帳號
-    private String name;        // 顯示姓名
-    private Role   role;        // ADMIN / OPERATOR / VIEWER
-    private Long   tenantId;    // 租戶 ID（工廠）
-    private String jti;         // JWT ID，用於定向登出
-    private long   exp;         // 過期時間（epoch 秒）
+    private Long         userId;      // 使用者 ID
+    private String       username;    // 登入帳號
+    private String       name;        // 顯示姓名
+    private Role         role;        // ADMIN / MAINTAINER / VIEWER
+    private Long         tenantId;    // 租戶 ID（工廠）
+    private List<String> stationIds;  // 可存取的站點清單（空 = 所有站點，Admin 永遠為空）
+    private String       jti;         // JWT ID，用於定向登出
+    private long         exp;         // 過期時間（epoch 秒）
 }
 ```
 
@@ -74,9 +75,10 @@ public class UserContextHolder {
 | 3 | 檢查 Token 過期（`exp` Claim）；已過期則拒絕 |
 | 4 | 查詢 Redis `jwt:blacklist:{jti}`；存在則拒絕（已登出） |
 | 5 | 解析 Claims 為 `UserContext`（含 `Role.valueOf(claim.role)`、`tenantId`） |
-| 6 | 呼叫 `UserContextHolder.set(ctx)`，設定 `SecurityContextHolder` |
-| 7 | 呼叫 `FilterChain.doFilter()` |
-| 8 | `finally`：`UserContextHolder.clear()` + `SecurityContextHolder.clearContext()` |
+| 6 | 若角色為 MAINTAINER 或 VIEWER，從 Redis `user:stations:{userId}` 取得站點清單，填入 `UserContext.stationIds` |
+| 7 | 呼叫 `UserContextHolder.set(ctx)`，設定 `SecurityContextHolder` |
+| 8 | 呼叫 `FilterChain.doFilter()` |
+| 9 | `finally`：`UserContextHolder.clear()` + `SecurityContextHolder.clearContext()` |
 
 ### 跳過路徑（公開端點）
 
@@ -101,17 +103,18 @@ RBAC 在 UseCase 層實施，不在 Controller：
 @Override
 public void execute(CreateAlertRuleRq rq) {
     UserContext ctx = UserContextHolder.get();
-    if (ctx.getRole() != Role.ADMIN) {
+    // 告警規則設定：Admin 與 Maintainer 可操作，Viewer 禁止
+    if (ctx.getRole() == Role.VIEWER) {
         throw new SaasBffException(SaasBffErrorType.FORBIDDEN);
     }
     // ...
 }
 ```
 
-| 功能 | ADMIN | OPERATOR | VIEWER |
+| 功能 | ADMIN | MAINTAINER | VIEWER |
 |---|---|---|---|
-| 站點/機台/IoT 元件設定（寫） | ✅ | ✗ | ✗ |
-| 告警規則設定 | ✅ | ✗ | ✗ |
+| 站點/機台/IoT 元件設定（寫） | ✅ | ✅ | ✗ |
+| 告警規則設定 | ✅ | ✅ | ✗ |
 | 告警 Acknowledge | ✅ | ✅ | ✗ |
 | 資料查詢 / 追溯 | ✅ | ✅ | ✅ |
 | 使用者管理 | ✅ | ✗ | ✗ |
@@ -128,6 +131,12 @@ saas-bff 透過 Feign Client 的明確 `@RequestHeader` 參數轉發身份，**�
 | `X-User-Id` | `Long` | 所有已認證端點 |
 | `X-User-Role` | `String` | 需要角色判斷的端點 |
 | `X-Tenant-Id` | `Long` | 多租戶隔離（每個請求都帶） |
+| `X-Station-Ids` | `String` | 逗號分隔的站點清單（e.g., `S01,S02`）；空字串或不帶此 Header 表示可存取所有站點 |
+
+**站點篩選規則：**
+- Admin：永遠不帶 `X-Station-Ids`（或空值），下游服務不做站點篩選
+- Maintainer / Viewer：若有站點綁定，saas-bff 帶入對應站點清單；下游服務依此過濾資料
+- 未綁定任何站點的 Maintainer / Viewer：視同可存取所有站點，行為與 Admin 相同
 
 ```java
 @FeignClient(name = "iotcore-service", url = "${feign.iotcore.url}")
