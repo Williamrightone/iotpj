@@ -7,19 +7,24 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
-/**
- * Spring Data JPA 宣告式 Repository（Adapter 內部使用）。
- * 不對外暴露，僅由 UserRepositoryImpl 呼叫。
- */
 public interface UserJpaRepository extends JpaRepository<UserEntity, Long> {
 
-    Optional<UserEntity> findByUsername(String username);
+    Optional<UserEntity> findByAccount(String account);
 
-    boolean existsByUsername(String username);
+    boolean existsByAccount(String account);
+
+    List<UserEntity> findByTenantId(Long tenantId);
+
+    long countByTenantIdAndStatusAndRoleAndIdNot(Long tenantId, String status, String role, Long excludeId);
 
     @Modifying
     @Query("UPDATE UserEntity u SET u.lastLoginAt = :now, u.updatedAt = :now WHERE u.id = :userId")
     void updateLastLoginAt(@Param("userId") Long userId, @Param("now") LocalDateTime now);
+
+    @Modifying
+    @Query("UPDATE UserEntity u SET u.status = :status, u.updatedAt = CURRENT_TIMESTAMP WHERE u.id = :id AND u.tenantId = :tenantId")
+    void updateStatus(@Param("id") Long id, @Param("tenantId") Long tenantId, @Param("status") String status);
 }

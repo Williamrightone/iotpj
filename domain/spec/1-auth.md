@@ -270,7 +270,35 @@ POST /api/auth/refresh (saas-bff)
 
 ---
 
-## 5. 待確認事項
+## 5. 實作設定備注
+
+### JWT RS256 金鑰設定
+
+金鑰以 **Base64 DER** 格式存於 `application.yml`，不使用檔案路徑：
+
+```yaml
+jwt:
+  private-key: ${JWT_PRIVATE_KEY:<base64-PKCS8-DER>}   # openssl pkcs8 -topk8 -outform DER | base64
+  public-key:  ${JWT_PUBLIC_KEY:<base64-X509-DER>}      # openssl rsa -pubout -outform DER | base64
+  access-token-expiry-seconds:  900     # 15 分鐘
+  refresh-token-expiry-seconds: 604800  # 7 天
+```
+
+- **本機開發**：`application.yml` 內建 hardcode 測試金鑰（RSA-2048，由 openssl 產生）
+- **正式環境**：透過 K8s Secret 注入 `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` 環境變數，覆蓋預設值
+- saas-bff 只需 `JWT_PUBLIC_KEY`（不需私鑰）
+
+### Redis Key 前綴對照
+
+| 功能 | Key Pattern | TTL |
+|------|-------------|-----|
+| refresh token 存活 | `auth:refresh:{jti}` | 604800s |
+| access token 黑名單 | `auth:blacklist:{jti}` | access token 剩餘秒數 |
+| 站點快取 | `user:stations:{userId}` | 3600s |
+
+---
+
+## 6. 待確認事項
 
 - 前端是否實作 silent refresh（access token 快到期時自動換新）？若是，需約定攔截器的重試機制。
 - `tenant_id` 在 users 中目前允許 null（平台超管）；業務使用者的 tenant_id 是否應強制 NOT NULL？

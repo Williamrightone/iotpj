@@ -6,6 +6,6 @@ package com.willthx.common.model.enums;
  */
 public enum Role {
     ADMIN,
-    OPERATOR,
+    MAINTAINER,
     VIEWER
 }

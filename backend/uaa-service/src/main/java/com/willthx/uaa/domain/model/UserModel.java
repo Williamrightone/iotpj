@@ -15,11 +15,11 @@ import java.time.LocalDateTime;
 public class UserModel {
 
     private final Long          id;
-    private final String        username;
-    private final String        name;
+    private final String        account;
+    private final String        displayName;
     private final Role          role;
     private final Long          tenantId;
-    private final boolean       active;
+    private final UserStatus    status;
     private final LocalDateTime lastLoginAt;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;

@@ -40,10 +40,12 @@ spring:
 snowflake:
   worker-id: ${SNOWFLAKE_WORKER_ID:1}
 
-# JWT RS256 設定（金鑰路徑由 SDD 完成後細化）
+# JWT RS256 設定
+# 金鑰格式：Base64 編碼的 DER 位元組（PKCS8 私鑰 / X.509 公鑰）
+# 正式環境請透過環境變數 JWT_PRIVATE_KEY / JWT_PUBLIC_KEY 注入，勿在此填入正式金鑰
 jwt:
-  private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:keys/private.pem}
-  public-key-path:  ${JWT_PUBLIC_KEY_PATH:classpath:keys/public.pem}
+  private-key: ${JWT_PRIVATE_KEY:MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQD7xb1JhyKi7vEOaTeC5n3q3sXLudQlcGLgsmr4gY0StxTPsqqhklFDl1f+7wQMBc3ARtWCHH0U36+ZeA1aLt4b9bFvXuDfoPWBzxbflvEbtsydLP8ADH9Byu+wjlg0oc/1DxmEU45lH+UWx9G99ih/OVrl66NDLGH5w/bPFpxD73FpAcs0dwY2FABm5GBrrbkllqt0jpQ4vy9uz/mAfc9ub5Yh9ofWy/ng0OIQQ8bPSwWDRgDEZNyLt26pAudAKNcM4V8gWulzf2vAKai/bY6wrqACZYSf5yjWLWxg4DduogmqFBKN6BTMh6lvMmmCJkPC4KwARptQfPCCeSus1lw5AgMBAAECggEBAPM0mVvMkTXJEMx18Oye0GWwWmsoj/i2bp1VXCW/p1G7zvuvQEqhN6TOLm+R3Vvrw0wIYLi14lHmng7mvCcwfNePZ54IjbsYFfAV5qeHfFLkKxVtYMpgSBF7AjyP1D7LTEISGvkLadLfk4GE9mPExGvZMKhHDkeWOPJ3TRPQaJTpbiu6b74I/s+7AuH9oWb4LlbmbtQoAmdt9XWe12LNY0anw4WZxdq+nlhvUjqIIRBo+P6f6FuIt1bwxr+UZtWgBsgt3AuE7CW/gmdFibVN8EV03ljaugsmAnr2mcrYUWp0amkT7Bd3WdHo31zc8hlzPojvu7vSn+fQMul7XdQxcX0CgYEA/vulROC1z5FQafsl3+G1mhxJXAyELvxjPz75IanjZVDtVZc+W3O3T7sj+OebaOS4b6hBHrcSV4OD4COmIf1rLw3FPeH8B5DhuSJrIVHEPMXqBZaJcQco23FqWVGjGXy85X3qeBvlkcLgLYsciWQkxLj/0xkSchhtmKt8go02+vcCgYEA/MbQzEAbZxPAIK6V+1WNIi6cYzTZ2PeY3MQqAvue9JMIgEZG8xap0sl5cmW+5454nltyMuKzViVN1qszEcC70ZcPh0yXv1gy1gQxnosU1XfKWag7rRZQmp4u9rLam/l3Okk2M/t49hgyakwpxmvgKtu81KJ7cSLOLLCZITGD5k8CgYEAq4Qyo6ZUJg+le+TIkVSOh9/HKPfyYni7eeuuQYq5v4k0XIKkG3g3Mpa7l86Tp3dS6SjQxQx4dg2tQ7Q3KF4DH1+v8fR1R9GZRKN2VK9fxVGMHb4pLbKXNSWRWAumHprdpbGRasG5JtdjXL9arsCCSyH2U9VlpwHvluajll3PQfkCgYEA1VDKn7Nx7JjESFBNDZ7yzWfcXfQZ63l3LMb2VTIWwHrcb7Pe6AG2KsYPkTS/2BVpQOoXA05A3W/5sjEjldW6KnN6jUlbvgQmUmmTniHs4QCIaQUJ51Wvi+v14gapaXsq3Ksv7MpJGBTvZrkDgAlFUaXCQwcjeSRQLXKSp2przw0CgYAgJUedQnOJn/6roNh2BC7I8mUrO6Xi8yhCjGS26Gf5ElyNLojp35lgC0DplsFRfGKi35oQ0VimjXJWx6kOEohZB7zwZdtlyAOWxc5fdVgpgGuWtfovBk4BDN5oUsVncSieaOkJ2hdODD5n24rGQ/GG85UtMdllM/ag2OmGweeeGQ==}
+  public-key:  ${JWT_PUBLIC_KEY:MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+8W9SYciou7xDmk3guZ96t7Fy7nUJXBi4LJq+IGNErcUz7KqoZJRQ5dX/u8EDAXNwEbVghx9FN+vmXgNWi7eG/Wxb17g36D1gc8W35bxG7bMnSz/AAx/QcrvsI5YNKHP9Q8ZhFOOZR/lFsfRvfYofzla5eujQyxh+cP2zxacQ+9xaQHLNHcGNhQAZuRga625JZardI6UOL8vbs/5gH3Pbm+WIfaH1sv54NDiEEPGz0sFg0YAxGTci7duqQLnQCjXDOFfIFrpc39rwCmov22OsK6gAmWEn+co1i1sYOA3bqIJqhQSjegUzIepbzJpgiZDwuCsAEabUHzwgnkrrNZcOQIDAQAB}
   access-token-expiry-seconds:  ${JWT_ACCESS_EXPIRY:900}     # 15 分鐘
   refresh-token-expiry-seconds: ${JWT_REFRESH_EXPIRY:604800} # 7 天
 
@@ -51,7 +53,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info
   endpoint:
     health:
       show-details: when-authorized

@@ -15,18 +15,18 @@
         <module>common-model</module>
         <module>common-web</module>
         <module>uaa-service</module>
+        <module>saas-bff</module>
         <!-- 後續依序加入 -->
         <!-- <module>iotcore-service</module> -->
         <!-- <module>telemetry-service</module> -->
         <!-- <module>iot-adapter</module> -->
-        <!-- <module>saas-bff</module> -->
         <!-- <module>realtime-bff</module> -->
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- Core framework -->
         <spring-boot.version>3.3.5</spring-boot.version>
@@ -68,31 +68,8 @@
                 <artifactId>common-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <!-- Database — MySQL 8 -->
-            <dependency>
-                <groupId>com.mysql</groupId>
-                <artifactId>mysql-connector-j</artifactId>
-                <scope>runtime</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.flywaydb</groupId>
-                <artifactId>flyway-core</artifactId>
-            </dependency>
-            <dependency>
-                <groupId>org.flywaydb</groupId>
-                <artifactId>flyway-mysql</artifactId>
-            </dependency>
-            <!-- Test — Testcontainers -->
-            <dependency>
-                <groupId>org.testcontainers</groupId>
-                <artifactId>junit-jupiter</artifactId>
-                <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.testcontainers</groupId>
-                <artifactId>mysql</artifactId>
-                <scope>test</scope>
-            </dependency>
+            <!-- Database — MySQL 8 (versions from spring-boot-dependencies BOM) -->
+            <!-- Flyway & Testcontainers versions are managed by Spring Boot BOM -->
             <!-- JWT (RS256) -->
             <dependency>
                 <groupId>io.jsonwebtoken</groupId>
@@ -132,8 +109,8 @@
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>${maven-compiler-plugin.version}</version>
                     <configuration>
-                        <source>21</source>
-                        <target>21</target>
+                        <source>17</source>
+                        <target>17</target>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>org.projectlombok</groupId>
