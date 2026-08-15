@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>willThx — 製程配置</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .config-layout { display:flex; gap:20px; align-items:flex-start; }
+    .station-list-panel { width:260px; flex-shrink:0; }
+    .station-detail-panel { flex:1; min-width:0; }
+
+    .station-item {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 14px; border-radius:8px; cursor:pointer;
+      margin-bottom:4px; transition:background .15s;
+    }
+    .station-item:hover { background:var(--bg); }
+    .station-item.active { background:#e8f0fe; }
+    .station-left { display:flex; align-items:center; gap:10px; }
+    .station-code-badge {
+      font-size:11px; font-weight:700; color:#fff;
+      background:var(--primary); border-radius:5px;
+      padding:2px 7px; letter-spacing:.5px;
+    }
+    .station-machine-count { font-size:12px; color:var(--text-muted); }
+    .drag-handle { color:#ccc; cursor:grab; font-size:16px; }
+
+    .section-header {
+      display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;
+    }
+    .section-title { font-weight:600; font-size:13px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; }
+
+    .component-row {
+      display:flex; align-items:center; gap:10px;
+      padding:8px 12px; border-radius:6px; background:var(--bg); margin-bottom:6px;
+    }
+    .comp-code { font-family:monospace; font-size:12px; color:var(--primary); font-weight:700; min-width:130px; }
+    .comp-name { font-size:13px; flex:1; }
+    .comp-meta { font-size:12px; color:var(--text-muted); min-width:70px; }
+    .comp-range { font-size:12px; color:var(--text-muted); min-width:100px; }
+    .badge-telemetry { background:#e8f0fe; color:#1967d2; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:600; }
+    .badge-event     { background:#fce8e6; color:#c5221f; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:600; }
+
+    .machine-card { border:1px solid var(--border); border-radius:10px; margin-bottom:10px; overflow:hidden; }
+    .machine-card-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 16px; background:#fff; cursor:pointer; user-select:none;
+    }
+    .machine-card-header:hover { background:var(--bg); }
+    .machine-left { display:flex; align-items:center; gap:10px; }
+    .machine-code { font-family:monospace; font-size:12px; font-weight:700; color:var(--text-muted); }
+    .machine-model { font-size:12px; color:var(--text-muted); }
+    .machine-card-body { padding:12px 16px; border-top:1px solid var(--border); background:#fafafa; display:none; }
+    .machine-card-body.open { display:block; }
+    .chevron { transition:transform .2s; display:inline-block; font-size:11px; color:var(--text-muted); }
+    .chevron.open { transform:rotate(90deg); }
+
+    .badge-active   { background:#e6f4ea; color:#137333; }
+    .badge-inactive { background:#f1f3f4; color:#5f6368; }
+
+    .empty-hint { color:var(--text-muted); font-size:13px; padding:16px 0; text-align:center; }
+
+    .deactivate-warning {
+      background:#fce8e6; border-radius:6px;
+      padding:10px 14px; font-size:13px; color:#c5221f; margin-bottom:16px;
+    }
+    .copy-info {
+      background:#e8f0fe; border-radius:6px;
+      padding:10px 14px; font-size:13px; color:#1967d2; margin-bottom:16px;
+    }
+    .form-row { display:flex; gap:12px; }
+    .form-row .form-group { flex:1; }
+    /* btn-secondary = ghost style */
+    .btn-secondary {
+      background:transparent; color:var(--text-muted);
+      border:1.5px solid var(--border); border-radius:var(--radius);
+    }
+    .btn-secondary:hover { background:var(--bg); color:var(--text); }
+    /* form hint text */
+    .form-hint { font-size:12px; color:var(--text-muted); margin-top:4px; }
+  </style>
+</head>
+<body>
+<div id="sidebarMount"></div>
+<div class="main">
+  <header class="page-header">
+    <div>
+      <div class="page-title">製程配置</div>
+      <div class="page-subtitle">製程配置 / 站點與機台管理</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" data-write-action onclick="openAddStationModal()">＋ 新增站點</button>
+    </div>
+  </header>
+
+  <div class="page-body">
+    <div class="config-layout">
+      <!-- Station List -->
+      <div class="station-list-panel">
+        <div class="card" style="padding:0;">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:600;font-size:14px;">站點列表</span>
+            <span style="font-size:11px;color:var(--text-muted);">⠿ 拖拉排序</span>
+          </div>
+          <div style="padding:8px;" id="stationList"></div>
+        </div>
+      </div>
+
+      <!-- Station Detail -->
+      <div class="station-detail-panel" id="stationDetail">
+        <div style="text-align:center;padding:80px 0;color:var(--text-muted);">
+          <div style="font-size:36px;margin-bottom:12px;">🏭</div>
+          <div>請從左側選擇一個站點</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="modalMount"></div>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script>
+document.getElementById('sidebarMount').innerHTML = renderSidebar();
+document.getElementById('modalMount').innerHTML = MODAL_HTML;
+initApp();
+
+// ── Page-local data (不與 app.js MOCK_STATIONS 衝突) ──────
+const STATION_COMPS = {
+  5: [
+    { id:101, code:'ENV-TEMP',     name:'廠區溫度', type:'TELEMETRY', unit:'°C',  interval:30, lower:20,  upper:26,  isActive:true },
+    { id:102, code:'ENV-HUMIDITY', name:'廠區濕度', type:'TELEMETRY', unit:'%',   interval:30, lower:40,  upper:60,  isActive:true },
+    { id:103, code:'ENV-POWER',    name:'電表功耗', type:'TELEMETRY', unit:'kW',  interval:30, lower:null,upper:65,  isActive:true },
+  ],
+};
+
+const MACHINES = {
+  1: Array.from({length:10},(_,i)=>({
+    id:100+i, stationId:1,
+    code:`S01-M${String(i+1).padStart(2,'0')}`,
+    name:`印刷機-${String(i+1).padStart(2,'0')}`,
+    model:'DEK Horizon 03i', isActive:true,
+    components:[
+      {id:200+i*3,code:'SP-PRESSURE', name:'刮刀壓力',    type:'TELEMETRY',unit:'kgf', interval:1, lower:6,   upper:14,  isActive:true},
+      {id:201+i*3,code:'SP-THICKNESS',name:'錫膏印刷厚度',type:'TELEMETRY',unit:'mm',  interval:1, lower:0.10,upper:0.20,isActive:true},
+      {id:202+i*3,code:'SP-SPEED',    name:'刮刀移動速度',type:'TELEMETRY',unit:'mm/s',interval:1, lower:null,upper:110, isActive:true},
+    ]
+  })),
+  2: Array.from({length:10},(_,i)=>({
+    id:200+i, stationId:2,
+    code:`S02-M${String(i+1).padStart(2,'0')}`,
+    name:`回焊爐-${String(i+1).padStart(2,'0')}`,
+    model:'Heller 1809 MKIII', isActive:i<9,
+    components:[
+      {id:300+i*5,code:'RF-TEMP-PREHEAT',name:'預熱區溫度',type:'TELEMETRY',unit:'°C',   interval:2,lower:150,upper:180,isActive:true},
+      {id:301+i*5,code:'RF-TEMP-SOAK',   name:'活化區溫度',type:'TELEMETRY',unit:'°C',   interval:2,lower:180,upper:210,isActive:true},
+      {id:302+i*5,code:'RF-TEMP-REFLOW', name:'回流區溫度',type:'TELEMETRY',unit:'°C',   interval:2,lower:240,upper:260,isActive:true},
+      {id:303+i*5,code:'RF-TEMP-COOL',   name:'冷卻區溫度',type:'TELEMETRY',unit:'°C',   interval:2,lower:50, upper:100,isActive:true},
+      {id:304+i*5,code:'RF-BELT-SPEED',  name:'傳送帶速度',type:'TELEMETRY',unit:'cm/min',interval:5,lower:60, upper:70, isActive:true},
+    ]
+  })),
+  3: Array.from({length:10},(_,i)=>({
+    id:300+i, stationId:3,
+    code:`S03-M${String(i+1).padStart(2,'0')}`,
+    name:`AOI 機-${String(i+1).padStart(2,'0')}`,
+    model:'Omron VT-S730', isActive:true,
+    components:[]
+  })),
+  4: Array.from({length:10},(_,i)=>({
+    id:400+i, stationId:4,
+    code:`S04-M${String(i+1).padStart(2,'0')}`,
+    name:`電測台-${String(i+1).padStart(2,'0')}`,
+    model:'自製 ICT Fixture', isActive:true,
+    components:[
+      {id:500+i,code:'FA-TORQUE',name:'鎖點扭力',type:'TELEMETRY',unit:'N·m',interval:0,lower:0.4,upper:0.6,isActive:true},
+    ]
+  })),
+  5:[],
+};
+
+let selectedStationId = null;
+let copySourceId = null;
+
+// ── Station List ───────────────────────────────────────────
+function renderStationList() {
+  document.getElementById('stationList').innerHTML = MOCK_STATIONS.map(s => {
+    const machineCount = (MACHINES[s.id]||[]).filter(m=>m.isActive).length;
+    return `
+    <div class="station-item ${selectedStationId===s.id?'active':''}" onclick="selectStation(${s.id})">
+      <div class="station-left">
+        <span class="drag-handle">⠿</span>
+        <div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+            <span class="station-code-badge">${s.code}</span>
+            <span style="font-weight:500;font-size:13px;">${s.name}</span>
+          </div>
+          <div class="station-machine-count">${machineCount} 台機台啟用中</div>
+        </div>
+      </div>
+      <span class="badge ${s.isActive?'badge-active':'badge-inactive'}" style="font-size:11px;">${s.isActive?'啟用':'停用'}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Station Detail ─────────────────────────────────────────
+function selectStation(id) {
+  selectedStationId = id;
+  renderStationList();
+  const s = MOCK_STATIONS.find(x=>x.id===id);
+  const machines = MACHINES[id] || [];
+  const stationComps = STATION_COMPS[id] || [];
+
+  document.getElementById('stationDetail').innerHTML = `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="station-code-badge" style="font-size:13px;padding:4px 10px;">${s.code}</span>
+          <span style="font-size:18px;font-weight:700;">${s.name}</span>
+          <span class="badge ${s.isActive?'badge-active':'badge-inactive'}">${s.isActive?'啟用':'停用'}</span>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" style="font-size:13px;" data-write-action>編輯站點</button>
+          <button class="btn btn-secondary" style="font-size:13px;color:#c5221f;" data-write-action
+            onclick="openDeactivateModal('station',${s.id})">停用站點</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-body">
+        <div class="section-header">
+          <span class="section-title">站點層級 IoT 元件</span>
+          <button class="btn btn-secondary" style="font-size:13px;" data-write-action
+            onclick="openAddComponentModal(null)">＋ 新增元件</button>
+        </div>
+        ${stationComps.length===0
+          ? `<div class="empty-hint">此站點無站點層級元件</div>`
+          : stationComps.map(c=>renderCompRow(c)).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="section-header">
+          <span class="section-title">機台列表（${machines.length} 台）</span>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" style="font-size:13px;" data-write-action
+              onclick="openCopyMachineModal()">複製機台</button>
+            <button class="btn btn-primary" style="font-size:13px;" data-write-action
+              onclick="openAddMachineModal()">＋ 新增機台</button>
+          </div>
+        </div>
+        ${machines.length===0
+          ? `<div class="empty-hint">尚未新增任何機台</div>`
+          : machines.map(m=>renderMachineCard(m)).join('')}
+      </div>
+    </div>
+  `;
+
+  // re-apply Viewer restriction to newly rendered write buttons
+  const user = getSession();
+  if (user && user.role === 'Viewer') {
+    document.querySelectorAll('[data-write-action]').forEach(el => {
+      el.disabled = true;
+      el.style.opacity = '.4';
+      el.style.pointerEvents = 'none';
+    });
+  }
+}
+
+function renderCompRow(c) {
+  const rangeText = (c.lower!=null||c.upper!=null) ? `${c.lower??'—'} ~ ${c.upper??'—'}` : '—';
+  return `
+  <div class="component-row" style="${!c.isActive?'opacity:.5':''}">
+    <span class="comp-code">${c.code}</span>
+    <span class="comp-name">${c.name}</span>
+    <span class="${c.type==='TELEMETRY'?'badge-telemetry':'badge-event'}">${c.type}</span>
+    <span class="comp-meta">${c.unit||'—'} ${c.interval!=null?(c.interval===0?'/ 事件驅動':`/ ${c.interval}s`):''}</span>
+    <span class="comp-range">${rangeText}</span>
+    <span class="badge ${c.isActive?'badge-active':'badge-inactive'}" style="font-size:11px;">${c.isActive?'啟用':'停用'}</span>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;" data-write-action>編輯</button>
+      <button class="btn btn-secondary" style="font-size:12px;padding:4px 10px;color:#c5221f;" data-write-action>停用</button>
+    </div>
+  </div>`;
+}
+
+function renderMachineCard(m) {
+  return `
+  <div class="machine-card" id="mc-${m.id}">
+    <div class="machine-card-header" onclick="toggleMachine(${m.id})">
+      <div class="machine-left">
+        <span class="chevron" id="chev-${m.id}">▶</span>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="machine-code">${m.code}</span>
+            <span style="font-weight:600;font-size:14px;">${m.name}</span>
+            <span class="badge ${m.isActive?'badge-active':'badge-inactive'}" style="font-size:11px;">${m.isActive?'啟用':'停用'}</span>
+          </div>
+          <div class="machine-model">${m.model||''} · ${m.components.length} 個元件</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;" onclick="event.stopPropagation()">
+        <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;" data-write-action
+          onclick="openAddComponentModal(${m.id})">＋ 元件</button>
+        <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;" data-write-action>編輯</button>
+        <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;color:#c5221f;" data-write-action
+          onclick="openDeactivateModal('machine',${m.id})">停用</button>
+      </div>
+    </div>
+    <div class="machine-card-body" id="mb-${m.id}">
+      ${m.components.length===0
+        ? `<div class="empty-hint">尚未設定 IoT 元件</div>`
+        : m.components.map(c=>renderCompRow(c)).join('')}
+    </div>
+  </div>`;
+}
+
+function toggleMachine(id) {
+  document.getElementById(`mb-${id}`).classList.toggle('open');
+  document.getElementById(`chev-${id}`).classList.toggle('open');
+}
+
+// ── Modals ─────────────────────────────────────────────────
+function openAddStationModal() {
+  openModal('新增站點', `
+    <div class="form-group">
+      <label>站點代碼 <span style="color:red">*</span></label>
+      <input class="form-control" id="f-stationCode" placeholder="例：S06">
+      <div class="form-hint">建立後不可修改，需與裝置韌體一致，租戶內唯一</div>
+    </div>
+    <div class="form-group">
+      <label>站點名稱 <span style="color:red">*</span></label>
+      <input class="form-control" id="f-stationName" placeholder="例：表面處理">
+    </div>
+    <div class="form-group">
+      <label>說明</label>
+      <input class="form-control" id="f-stationDesc" placeholder="選填">
+    </div>
+  `, () => { closeModal(); renderStationList(); });
+}
+
+function openAddMachineModal() {
+  openModal('新增機台', `
+    <div class="form-group">
+      <label>機台代碼 <span style="color:red">*</span></label>
+      <input class="form-control" id="f-machineCode" placeholder="例：S01-M11">
+      <div class="form-hint">建立後不可修改，租戶內唯一，需與韌體一致</div>
+    </div>
+    <div class="form-group">
+      <label>機台名稱 <span style="color:red">*</span></label>
+      <input class="form-control" id="f-machineName" placeholder="例：印刷機-11">
+    </div>
+    <div class="form-group">
+      <label>型號備註</label>
+      <input class="form-control" id="f-machineModel" placeholder="例：DEK Horizon 03i（選填）">
+    </div>
+  `, () => { closeModal(); selectStation(selectedStationId); });
+}
+
+function openCopyMachineModal() {
+  const machines = (MACHINES[selectedStationId]||[]).filter(m=>m.isActive);
+  if (!machines.length) { alert('此站點尚無可複製的機台'); return; }
+  const src = machines[0];
+  copySourceId = src.id;
+  const compCount = src.components.filter(c=>c.isActive).length;
+  openModal('複製機台', `
+    <div class="copy-info">
+      複製來源：${src.name}（${src.code}）<br>
+      將同時複製 <strong>${compCount}</strong> 個啟用中的 IoT 元件設定
+    </div>
+    <div class="form-group">
+      <label>新機台代碼 <span style="color:red">*</span></label>
+      <input class="form-control" id="f-copyCode" placeholder="例：S01-M11">
+    </div>
+    <div class="form-group">
+      <label>新機台名稱 <span style="color:red">*</span></label>
+      <input class="form-control" id="f-copyName" placeholder="例：印刷機-11">
+    </div>
+  `, () => { closeModal(); selectStation(selectedStationId); });
+}
+
+function openAddComponentModal(machineId) {
+  const machine = machineId ? (MACHINES[selectedStationId]||[]).find(m=>m.id===machineId) : null;
+  const title = machine ? `新增 IoT 元件 — ${machine.name}` : '新增站點層級 IoT 元件';
+  openModal(title, `
+    <div class="form-group">
+      <label>元件代碼 <span style="color:red">*</span></label>
+      <input class="form-control" id="f-compCode" placeholder="例：SP-PRESSURE">
+      <div class="form-hint">建立後不可修改，需與韌體一致</div>
+    </div>
+    <div class="form-group">
+      <label>元件名稱 <span style="color:red">*</span></label>
+      <input class="form-control" id="f-compName" placeholder="例：刮刀壓力">
+    </div>
+    <div class="form-group">
+      <label>資料類型 <span style="color:red">*</span></label>
+      <select class="form-control" id="f-compType" onchange="toggleCompTypeFields()">
+        <option value="TELEMETRY">TELEMETRY（連續感測數值）</option>
+        <option value="EVENT">EVENT（離散製程事件）</option>
+      </select>
+    </div>
+    <div id="telemetryFields">
+      <div class="form-group">
+        <label>單位 <span style="color:red">*</span></label>
+        <input class="form-control" id="f-compUnit" placeholder="例：kgf、°C、mm">
+      </div>
+      <div class="form-group">
+        <label>上報頻率（秒）</label>
+        <input class="form-control" type="number" id="f-compInterval" placeholder="例：1（填 0 = 事件驅動）">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>正常下限</label>
+          <input class="form-control" type="number" step="any" id="f-compLower" placeholder="選填">
+        </div>
+        <div class="form-group">
+          <label>正常上限</label>
+          <input class="form-control" type="number" step="any" id="f-compUpper" placeholder="選填">
+        </div>
+      </div>
+    </div>
+  `, () => { closeModal(); selectStation(selectedStationId); });
+}
+
+function toggleCompTypeFields() {
+  const type = document.getElementById('f-compType')?.value;
+  const fields = document.getElementById('telemetryFields');
+  if (fields) fields.style.display = type === 'EVENT' ? 'none' : '';
+}
+
+function openDeactivateModal(type, id) {
+  let title, warning;
+  if (type === 'station') {
+    const s = MOCK_STATIONS.find(x=>x.id===id);
+    const ms = (MACHINES[id]||[]).filter(m=>m.isActive);
+    const compCount = ms.reduce((n,m)=>n+m.components.filter(c=>c.isActive).length, 0)
+                    + (STATION_COMPS[id]||[]).filter(c=>c.isActive).length;
+    title = `停用站點：${s.name}`;
+    warning = `此操作將連帶停用 ${ms.length} 台機台及 ${compCount} 個 IoT 元件。停用後歷史資料保留，可隨時重新啟用（底層不自動恢復）。`;
+  } else {
+    const m = (MACHINES[selectedStationId]||[]).find(x=>x.id===id);
+    const compCount = m.components.filter(c=>c.isActive).length;
+    title = `停用機台：${m.name}`;
+    warning = `此操作將連帶停用 ${compCount} 個 IoT 元件。停用後歷史資料保留，可隨時重新啟用。`;
+  }
+  openModal(title, `
+    <div class="deactivate-warning">${warning}</div>
+    <div style="font-size:13px;color:var(--text-muted);">確認停用後，該機台 / 元件的 MQTT 資料將不再被系統接收。</div>
+  `, () => { closeModal(); selectStation(selectedStationId); });
+  // 將儲存按鈕改為停用樣式
+  setTimeout(()=>{
+    const btn = document.getElementById('modalSubmit');
+    if (btn) { btn.textContent = '確認停用'; btn.style.background = '#c5221f'; }
+  }, 0);
+}
+
+// ── Init ──────────────────────────────────────────────────
+renderStationList();
+selectStation(1);
+</script>
+</body>
+</html>

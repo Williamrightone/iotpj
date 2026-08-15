@@ -40,16 +40,18 @@ function initApp() {
 
 // ===== Feature Tree =====
 const MOCK_FEATURES = [
-  { id:'F01', name:'系統設定',     code:'sys-settings',     parentId:null,  route:null,                    icon:'⚙',  sort:1 },
-  { id:'F02', name:'使用者管理',   code:'user-mgmt',         parentId:'F01', route:'users.html',            icon:'⊙',  sort:1 },
-  { id:'F03', name:'功能管理',     code:'feature-mgmt',      parentId:'F01', route:'features.html',         icon:'⊞',  sort:2 },
-  { id:'F04', name:'角色權限設定', code:'role-permissions',  parentId:'F01', route:'role-permissions.html', icon:'⚑',  sort:3 },
+  { id:'F00', name:'製程配置',     code:'process-config',    parentId:null,  route:null,                      icon:'🏭', sort:0 },
+  { id:'F00A',name:'製程配置管理', code:'process-config-mgmt',parentId:'F00',route:'process-config.html',     icon:'⊞', sort:1 },
+  { id:'F01', name:'系統設定',     code:'sys-settings',      parentId:null,  route:null,                      icon:'⚙',  sort:1 },
+  { id:'F02', name:'使用者管理',   code:'user-mgmt',          parentId:'F01', route:'users.html',              icon:'⊙',  sort:1 },
+  { id:'F03', name:'功能管理',     code:'feature-mgmt',       parentId:'F01', route:'features.html',           icon:'⊞',  sort:2 },
+  { id:'F04', name:'角色權限設定', code:'role-permissions',   parentId:'F01', route:'role-permissions.html',   icon:'⚑',  sort:3 },
 ];
 
 // Maintainer / Viewer 可存取的子功能 code 清單（Admin 自動擁有全部）
 const MOCK_ROLE_PERMISSIONS = {
-  Maintainer: [],
-  Viewer:     [],
+  Maintainer: ['process-config-mgmt'],
+  Viewer:     ['process-config-mgmt'],
 };
 
 function getAccessibleLeaves(role) {
@@ -146,5 +148,11 @@ const MOCK_USERS = [
   { id:'U03', username:'viewer',     name:'張觀察者', role:'Viewer',     stations:[], lastLogin:'2026-08-11 10:01', active:true },
 ];
 
-// 製程站點（目前尚無，待製程配置功能新增後補入）
-const MOCK_STATIONS = [];
+// 製程站點
+const MOCK_STATIONS = [
+  { id:1, code:'S01', name:'錫膏印刷',       sortOrder:1, isActive:true },
+  { id:2, code:'S02', name:'回流焊',          sortOrder:2, isActive:true },
+  { id:3, code:'S03', name:'AOI 光學檢測',    sortOrder:3, isActive:true },
+  { id:4, code:'S04', name:'電測／最終組裝',  sortOrder:4, isActive:true },
+  { id:5, code:'S05', name:'廠務環境',         sortOrder:5, isActive:true },
+];

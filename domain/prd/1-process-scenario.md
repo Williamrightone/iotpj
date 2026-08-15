@@ -1,7 +1,7 @@
 # PRD-001：製程情境與業務需求
 
-> 版本：v0.2
-> 日期：2026-08-07
+> 版本：v0.3
+> 日期：2026-08-14
 > 狀態：定稿
 
 ---
@@ -54,9 +54,9 @@ Unit（板件） ── unitSerial，記錄跨站的所有事件與感測數值
 flowchart LR
     IN([PCB 板件\n投料])
     S1[站一\n錫膏印刷\nSolder Paste]
-    S2[站二\nAOI 檢測\nOptical Inspection]
-    S3[站三\n回流焊\nReflow Soldering]
-    S4[站四\n最終組裝\nFinal Assembly]
+    S2[站二\n回流焊\nReflow Soldering]
+    S3[站三\nAOI 檢測\nOptical Inspection]
+    S4[站四\n電測／最終組裝\nFinal Test & Assembly]
     OUT([成品\n出站])
     ENV{{廠務環境監控\n溫濕度 ESD ／ 電表功耗}}
 
@@ -69,8 +69,8 @@ flowchart LR
     style IN  fill:#e8f5e9,stroke:#388e3c
     style OUT fill:#e8f5e9,stroke:#388e3c
     style S1  fill:#fff3e0,stroke:#f57c00
-    style S2  fill:#e3f2fd,stroke:#1976d2
-    style S3  fill:#fce4ec,stroke:#c62828
+    style S2  fill:#fce4ec,stroke:#c62828
+    style S3  fill:#e3f2fd,stroke:#1976d2
     style S4  fill:#f3e5f5,stroke:#7b1fa2
     style ENV fill:#fffde7,stroke:#f9a825
 ```
@@ -108,37 +108,37 @@ gantt
 
     section Unit-001
     印刷機-01 :u1s1, 00:00, 10m
-    AOI機-01  :u1s2, 00:12, 10m
-    回焊爐-01 :u1s3, 00:24, 10m
-    組裝台-01 :u1s4, 00:36, 10m
+    回焊爐-01 :u1s2, 00:12, 10m
+    AOI機-01  :u1s3, 00:24, 10m
+    電測台-01 :u1s4, 00:36, 10m
 
     section Unit-002
     印刷機-02 :u2s1, 00:05, 10m
-    AOI機-02  :u2s2, 00:17, 10m
-    回焊爐-02 :u2s3, 00:29, 10m
-    組裝台-02 :u2s4, 00:41, 10m
+    回焊爐-02 :u2s2, 00:17, 10m
+    AOI機-02  :u2s3, 00:29, 10m
+    電測台-02 :u2s4, 00:41, 10m
 
     section Unit-003
     印刷機-01 :u3s1, 00:10, 10m
-    AOI機-01  :u3s2, 00:22, 10m
-    回焊爐-01 :u3s3, 00:34, 10m
-    組裝台-01 :u3s4, 00:46, 10m
+    回焊爐-01 :u3s2, 00:22, 10m
+    AOI機-01  :u3s3, 00:34, 10m
+    電測台-01 :u3s4, 00:46, 10m
 ```
 
 > 查詢批號時，可依時間軸看到該批次所有板件的完整生產時序，包含各站上下料時間、製程時長與操作人員。
 
 ### 2.3 四個製程站說明
 
-#### 站一：錫膏印刷（SMT Solder Paste Printing）
+#### 站一：錫膏印刷（S01 — SMT Solder Paste Printing）
 
 將錫膏透過鋼網印刷至 PCB 焊墊上，為後續焊接做準備。印刷品質受刮刀壓力、錫膏厚度、印刷速度影響。
 
-**持續推送的感測資料：**
+**持續推送的感測資料（Telemetry）：**
 - 刮刀壓力（kgf）
 - 錫膏印刷厚度（mm）
 - 刮刀移動速度（mm/s）
 
-**產生的製程事件：**
+**產生的製程事件（Device Event）：**
 - 板件上料（unitSerial、操作員 ID、時間）
 - 板件下料（unitSerial、操作員 ID、時間）
 - 批號開始 / 結束
@@ -147,33 +147,18 @@ gantt
 
 ---
 
-#### 站二：AOI 光學檢測（Automated Optical Inspection）
-
-以機器視覺自動比對板件焊點外觀，判定 pass / fail，並標記缺陷類型（如錫橋、少錫、偏移）。
-
-AOI 機械判定結果可由人員進行**複判**，複判結果回寫系統，用於後續誤判率分析與門檻校正。
-
-**持續推送的感測資料：**
-- 每片板的判定結果（pass / fail）
-- 缺陷碼與缺陷位置
-
-**產生的製程事件：**
-- 板件上料（unitSerial、操作員 ID、時間）
-- 板件下料（unitSerial、操作員 ID、時間）
-- 缺陷觸發（含缺陷碼、unitSerial）
-- 人員複判結果回寫（含複判人員 ID、最終判定）
-
----
-
-#### 站三：回流焊（Reflow Soldering）
+#### 站二：回流焊（S02 — Reflow Soldering）
 
 將印好錫膏的板件送入回焊爐，依溫度曲線加熱使錫膏融化並固化，完成焊點成形。各溫區需持續監控。
 
-**持續推送的感測資料：**
-- 各溫區實測溫度（°C）（預熱區、活化區、回流區、冷卻區）
+**持續推送的感測資料（Telemetry）：**
+- 預熱區溫度（°C）
+- 活化區溫度（°C）
+- 回流區溫度（°C）
+- 冷卻區溫度（°C）
 - 傳送帶速度（cm/min）
 
-**產生的製程事件：**
+**產生的製程事件（Device Event）：**
 - 板件上料（unitSerial、操作員 ID、時間）
 - 板件下料（unitSerial、操作員 ID、時間）
 - 溫度超標告警（含溫區、偏差值）
@@ -181,17 +166,31 @@ AOI 機械判定結果可由人員進行**複判**，複判結果回寫系統，
 
 ---
 
-#### 站四：最終組裝（Final Assembly）
+#### 站三：AOI 光學檢測（S03 — Automated Optical Inspection）
 
-將回焊完成的 PCB 板件組入外殼，進行螺絲鎖附、功能測試，完成成品。
+**焊後**以機器視覺自動比對板件焊點外觀，判定 pass / fail，並標記缺陷類型（如錫橋、少錫、偏移）。
 
-**持續推送的感測資料：**
+AOI 機械判定結果可由人員進行**複判**，複判結果回寫系統，用於後續誤判率分析與門檻校正。
+
+**產生的製程事件（Device Event，無連續 Telemetry）：**
+- 板件上料（unitSerial、操作員 ID、時間）
+- 板件下料（unitSerial、操作員 ID、時間）
+- AOI 判定結果（pass/fail、缺陷碼、缺陷位置，每板一筆 Event）
+- 人員複判結果回寫（複判人員 ID、最終判定）→ 走 REST API，不經 Kafka
+
+---
+
+#### 站四：電測／最終組裝（S04 — Final Test & Assembly）
+
+對完成焊接與 AOI 的 PCB 板件進行功能電測，通過後組入外殼並完成螺絲鎖附，為成品出站。
+
+**持續推送的感測資料（Telemetry）：**
 - 各鎖點扭力值（N·m）
-- 功能測試結果（pass / fail）
 
-**產生的製程事件：**
+**產生的製程事件（Device Event）：**
 - 板件上料（unitSerial、操作員 ID、時間）
 - 板件下料 / 出站（unitSerial、操作員 ID、時間）
+- 功能測試結果（PASS / FAIL，每板一筆 Event）
 - 批號關閉
 - 組裝缺陷（扭力超標、測試失敗）
 
