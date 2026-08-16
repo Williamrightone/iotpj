@@ -17,7 +17,7 @@
         <module>uaa-service</module>
         <module>saas-bff</module>
         <!-- 後續依序加入 -->
-        <!-- <module>iotcore-service</module> -->
+        <module>iotcore-service</module>
         <!-- <module>telemetry-service</module> -->
         <!-- <module>iot-adapter</module> -->
         <!-- <module>realtime-bff</module> -->
