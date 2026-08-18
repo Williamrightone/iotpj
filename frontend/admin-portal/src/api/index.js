@@ -146,4 +146,61 @@ export default {
   updateRolePermissions(role, featureIds) {
     return request(`/role-permissions/${role}`, { method: 'PUT', body: { featureIds } })
   },
+
+  // ── Stations ──────────────────────────────────────────
+  listStations() {
+    return request('/stations')
+  },
+  getStationDetail(id) {
+    return request(`/stations/${id}/detail`)
+  },
+  createStation(data) {
+    return request('/stations', { method: 'POST', body: data })
+  },
+  updateStation(id, data) {
+    return request(`/stations/${id}`, { method: 'PUT', body: data })
+  },
+  reorderStations(items) {
+    return request('/stations/reorder', { method: 'POST', body: { items } })
+  },
+  deactivateStation(id) {
+    return request(`/stations/${id}/deactivate`, { method: 'POST' })
+  },
+  activateStation(id) {
+    return request(`/stations/${id}/activate`, { method: 'POST' })
+  },
+
+  // ── Machines ──────────────────────────────────────────
+  createMachine(stationId, data) {
+    return request(`/stations/${stationId}/machines`, { method: 'POST', body: data })
+  },
+  updateMachine(id, data) {
+    return request(`/machines/${id}`, { method: 'PUT', body: data })
+  },
+  deactivateMachine(id) {
+    return request(`/machines/${id}/deactivate`, { method: 'POST' })
+  },
+  activateMachine(id) {
+    return request(`/machines/${id}/activate`, { method: 'POST' })
+  },
+  copyMachine(id, data) {
+    return request(`/machines/${id}/copy`, { method: 'POST', body: data })
+  },
+
+  // ── Components ────────────────────────────────────────
+  createStationComponent(stationId, data) {
+    return request(`/stations/${stationId}/components`, { method: 'POST', body: data })
+  },
+  createMachineComponent(machineId, data) {
+    return request(`/machines/${machineId}/components`, { method: 'POST', body: data })
+  },
+  updateComponent(id, data) {
+    return request(`/components/${id}`, { method: 'PUT', body: data })
+  },
+  deactivateComponent(id) {
+    return request(`/components/${id}/deactivate`, { method: 'POST' })
+  },
+  activateComponent(id) {
+    return request(`/components/${id}/activate`, { method: 'POST' })
+  },
 }

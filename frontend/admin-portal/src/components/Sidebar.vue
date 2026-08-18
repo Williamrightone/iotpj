@@ -14,6 +14,7 @@ const ICON_MAP = {
   USER_LIST:      '◉',
   SYS_FEATURES:   '◆',
   SYS_ROLE_PERMS: '◇',
+  PROCESS_CONFIG: '◰',
 }
 
 // 將平坦陣列組成 [{ group, children[] }]，依 sortOrder 排序

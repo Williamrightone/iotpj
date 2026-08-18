@@ -80,7 +80,6 @@ public enum ComponentDataType { TELEMETRY, EVENT }
 | IC00004 | 本 spec 新增 | 站點代碼已存在（stationCode 在租戶內重複） |
 | IC00005 | 本 spec 新增 | 機台代碼已存在（machineCode 在租戶內重複） |
 | IC00006 | 本 spec 新增 | 元件代碼已存在（componentCode 在同機台/同站點層級內重複） |
-| IC00007 | 本 spec 新增 | 代碼欄位不可修改（stationCode / machineCode / componentCode） |
 | SB00001 | 已存在 SPEC-1 | 無操作權限（Viewer 嘗試寫入） |
 
 > Viewer 嘗試任何寫入操作時，saas-bff UseCase 層擲出 SB00001，回傳 HTTP 403。
@@ -100,7 +99,7 @@ public enum ComponentDataType { TELEMETRY, EVENT }
 
 - **說明**：查詢本租戶所有站點（含各站啟用機台數）
 - **RBAC**：Admin / Maintainer / Viewer
-- **Response**：`ApiResponse<List<StationRs>>`
+- **Response**：`ApiResponse<List<StationSummaryRs>>`
   ```json
   [{
     "id":           1234567890,
@@ -313,6 +312,7 @@ public enum ComponentDataType { TELEMETRY, EVENT }
 
 > 所有 internal API 不需 JWT，由 saas-bff 注入 `X-Tenant-Id` header
 > RBAC 在 saas-bff 層已完成，iotcore 只驗 tenant 隔離
+> **以下所有 internal 端點均需 `X-Tenant-Id: {tenantId}` header，不再逐一重複列出**
 
 #### GET /internal/stations
 
@@ -444,11 +444,15 @@ POST /api/stations/{id}/deactivate (saas-bff)
 ### 4.3 重新啟用站點（不連帶）
 
 ```
-POST /api/stations/{id}/activate (iotcore)
-  @Transactional:
-    a. 查 stations WHERE id=? AND tenant_id=? → 不存在 → IC00001
-    b. UPDATE stations SET is_active=1 WHERE id=?
-    c. 不更動底層 machines / iot_components
+POST /api/stations/{id}/activate (saas-bff)
+  UseCase:
+    role == VIEWER → throw SB00001
+
+  呼叫 POST /internal/stations/{id}/activate (iotcore)
+    @Transactional:
+      a. 查 stations WHERE id=? AND tenant_id=? → 不存在 → IC00001
+      b. UPDATE stations SET is_active=1 WHERE id=?
+      c. 不更動底層 machines / iot_components
 ```
 
 ### 4.4 停用機台（連帶停用元件）
@@ -459,7 +463,7 @@ POST /internal/machines/{id}/deactivate (iotcore)
     a. 查 machines WHERE id=? AND tenant_id=? → 不存在 → IC00002
     b. UPDATE machines SET is_active=0 WHERE id=?
     c. UPDATE iot_components SET is_active=0 WHERE machine_id=? AND is_active=1
-    d. 回傳 deactivatedComponents 數
+    d. 回傳 deactivatedMachines=1（機台本身）、deactivatedComponents 數
 ```
 
 ### 4.5 複製機台
@@ -492,12 +496,14 @@ POST /internal/stations/{stationId}/components (iotcore)  [站點層級]
     c. INSERT iot_components（machine_id=NULL）
 ```
 
-### 4.7 更新資訊（代碼不可修改）
+### 4.7 更新資訊（不可修改欄位）
 
 > PUT /internal/stations/{id}、PUT /internal/machines/{id}、PUT /internal/components/{id}
 >
-> 所有 PUT 端點的 Request Body 中不包含 code 欄位（stationCode / machineCode / componentCode）。
-> 若前端錯誤傳入 code，直接忽略，不做更新，不拋出錯誤。
+> **不可修改欄位**：stationCode、machineCode、componentCode、dataType（與韌體綁定）
+>
+> 所有 PUT 端點的 Request Body 中不包含上述不可修改欄位。
+> 若前端錯誤傳入這些欄位，直接忽略，不做更新，不拋出錯誤。
 
 ### 4.8 排序更新
 
@@ -505,8 +511,9 @@ POST /internal/stations/{stationId}/components (iotcore)  [站點層級]
 POST /internal/stations/reorder
   @Transactional:
     對 orders 列表中每一筆：
+      查 stations WHERE id=? AND tenant_id=? → 不存在 → IC00001（整批 rollback）
+    全部驗證通過後：
       UPDATE stations SET sort_order=? WHERE id=? AND tenant_id=?
-      （不存在則忽略，不拋出錯誤）
 ```
 
 ---

@@ -17,6 +17,10 @@ uaa:
   service:
     url: ${UAA_SERVICE_URL:http://localhost:8081}
 
+iotcore:
+  service:
+    url: ${IOTCORE_SERVICE_URL:http://localhost:8082}
+
 # JWT RS256（僅公鑰，用於驗簽）
 jwt:
   public-key: ${JWT_PUBLIC_KEY:MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+8W9SYciou7xDmk3guZ96t7Fy7nUJXBi4LJq+IGNErcUz7KqoZJRQ5dX/u8EDAXNwEbVghx9FN+vmXgNWi7eG/Wxb17g36D1gc8W35bxG7bMnSz/AAx/QcrvsI5YNKHP9Q8ZhFOOZR/lFsfRvfYofzla5eujQyxh+cP2zxacQ+9xaQHLNHcGNhQAZuRga625JZardI6UOL8vbs/5gH3Pbm+WIfaH1sv54NDiEEPGz0sFg0YAxGTci7duqQLnQCjXDOFfIFrpc39rwCmov22OsK6gAmWEn+co1i1sYOA3bqIJqhQSjegUzIepbzJpgiZDwuCsAEabUHzwgnkrrNZcOQIDAQAB}
